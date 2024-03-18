@@ -14,22 +14,22 @@ def parse_en_stat2(my_url, levels_list):
     html = BeautifulSoup(rs, 'html.parser')
     rs.close()
 
+    '''
+        # получаем дату и время начала игры (старый способ, ниже новый из слайдера)
+        gamelink = html.find('a', id='lnkDomain').get('href')[:-1] + html.find('a', id='lnkGameName').get('href')
+        rs = urlopen(gamelink + '&lang=ru')
+        html2 = BeautifulSoup(rs, 'html.parser')
+        rs.close()
+        span_set = html2.find('table', class_='gameInfo').find_all('span')
+        for elem in span_set:
+            if elem.text == 'Начало игры':
+                date_start_str = re.search(r'\d\d\.\d\d\.\d\d\d\d \d*:\d\d:\d\d', elem.find_next().text).group(0)
+                date_start = datetime.strptime(date_start_str, '%d.%m.%Y %H:%M:%S')
+                break
+        '''
+
     # window.sliderStartTime = '23.09.2023 08:00:00.000';
     date_start = datetime.strptime(re.search(r"(?<=sliderStartTime = ').*(?=\';)", str(html))[0], '%d.%m.%Y %H:%M:%S.%f')
-
-    '''
-    # получаем дату и время начала игры
-    gamelink = html.find('a', id='lnkDomain').get('href')[:-1] + html.find('a', id='lnkGameName').get('href')
-    rs = urlopen(gamelink + '&lang=ru')
-    html2 = BeautifulSoup(rs, 'html.parser')
-    rs.close()
-    span_set = html2.find('table', class_='gameInfo').find_all('span')
-    for elem in span_set:
-        if elem.text == 'Начало игры':
-            date_start_str = re.search(r'\d\d\.\d\d\.\d\d\d\d \d*:\d\d:\d\d', elem.find_next().text).group(0)
-            date_start = datetime.strptime(date_start_str, '%d.%m.%Y %H:%M:%S')
-            break
-    '''
 
     parse_data = html.find('table', id='GameStatObject_DataTable')
     if not parse_data:
