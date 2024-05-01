@@ -1,8 +1,24 @@
 from bs4 import BeautifulSoup #pip install beautifulsoup4
+from string import Formatter
 import re
 from urllib.request import urlopen
 from operator import itemgetter
 from datetime import datetime, timedelta
+
+def strfdelta(tdelta: timedelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s'):
+    remainder = int(tdelta.total_seconds())
+
+    f = Formatter()
+    desired_fields = [field_tuple[1] for field_tuple in f.parse(fmt)]
+    possible_fields = ('W', 'D', 'H', 'M', 'S')
+    constants = {'W': 604800, 'D': 86400, 'H': 3600, 'M': 60, 'S': 1}
+    values = {}
+    for field in possible_fields:
+        if field in desired_fields and field in constants:
+            Quotient, remainder = divmod(remainder, constants[field])
+            values[field] = int(Quotient)
+    values['mS'] = int(tdelta.microseconds / 1000)
+    return f.format(fmt, **values)
 
 def parse_en_stat2(my_url, levels_list):
     result_dict = {}
@@ -78,13 +94,20 @@ def parse_en_stat2(my_url, levels_list):
 
     result_list = [(a, result_dict[a][0], result_dict[a][2], result_dict[a][1]) for a in result_dict]
 
-    maxlen = max(len(a[0]) for a in result_list)
+    # посчитаем максимальную ширину столбцов "место" и "команда" для выравнивания
+    team_width = max(len(a[0]) for a in result_list)
+    pos_width = len(str(len(result_list)))
+
+    def format_line(i, row, with_bonus):
+        pos = str(i + 1).ljust(pos_width)
+        team = row[0].ljust(team_width)
+        time = strfdelta(row[2] if with_bonus else row[1],'{H:02}:{M:02}:{S:02}.{mS:03}')
+        return f'{pos} {team} {time} {row[3]}'
 
     sorted_bonus_list = sorted(sorted(result_list, key=itemgetter(2)), key=itemgetter(3), reverse=True)
-    bonus_output_list = ['С бонусами:'] + [f'{i+1} {a[0]} {" " * (maxlen - len(a[0])-len(str(i+1))+2)} {str(a[2]).split(".")[0] if a[2] >= timedelta(0) else "-" + str(timedelta() - a[2]).split(".")[0]} {a[3]}' for i, a in enumerate(sorted_bonus_list)]
+    bonus_output_list = ['С бонусами:'] + [format_line(i, a, True) for i, a in enumerate(sorted_bonus_list)]
 
     sorted_nobonus_list = sorted(sorted(result_list, key=itemgetter(1)), key=itemgetter(3), reverse=True)
-    #nobonus_output_list = ['Без бонусов:'] + [f'{i+1} {a[0].split(".")[0]} {" " * (maxlen - len(a[0])-len(str(i+1))+2)} {str(a[1])[:-3]} {a[3]}' for i, a in enumerate(sorted_nobonus_list)]
-    nobonus_output_list = ['Без бонусов:'] + [f'{i + 1} {a[0]} {" " * (maxlen - len(a[0]) - len(str(i + 1)) + 2)} {str(a[1])[:-3]} {a[3]}' for i, a in enumerate(sorted_nobonus_list)]
+    nobonus_output_list = ['Без бонусов:'] + [format_line(i, a, False) for i, a in enumerate(sorted_nobonus_list)]
 
     return bonus_output_list, nobonus_output_list
