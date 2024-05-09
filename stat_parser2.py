@@ -52,11 +52,15 @@ def parse_en_stat2(my_url, levels_list):
         parse_data = html.find('table', id='GameStatObject2_DataTable')
     #parse_set = html.find('table', id='GameStatObject_DataTable').find_all('tr')[1:-1]
     parse_set = parse_data.find_all('tr')[1:-1]
+    dismissed_levels = set()
     for a in parse_set:
         level = 0
         b = a.find_all('div', class_='dataCell')
         for elem in b:
             level += 1
+            # уровень снят - игнорим
+            if elem.parent.has_attr('style') and elem.parent['style'] == 'background-color:#000;':
+                dismissed_levels.add(level)
             level_order = int(elem.find('div', class_='n').text) if (elem.find('div', class_='n') is not None) else level
             team = elem.find('a').text
             up_date = re.findall(r'\d\d\.\d\d\.\d\d\d\d', str(elem))  # 12.11.2022
@@ -77,7 +81,7 @@ def parse_en_stat2(my_url, levels_list):
             stat_list.append((team, level, up_datetime, sec_total, level_order))
 
     for a in stat_list:
-        if a[1] in levels_list:
+        if (a[1] in levels_list) or len(levels_list) == 0: # если уровни не заданы - считаем по всем
             if a[4] == 1:  # если первый уровень, то нужно вычитать из времени начала игры
                 new_stat_list.append([a[0], a[1], a[2] - date_start, a[3]])
 
@@ -103,11 +107,15 @@ def parse_en_stat2(my_url, levels_list):
         team = row[0].ljust(team_width)
         time = strfdelta(row[2] if with_bonus else row[1],'{H:02}:{M:02}:{S:02}.{mS:03}')
         return f'{pos} {team} {time} {row[3]}'
+    header = [
+        f'Статистика по уровням: {'все' if len(levels_list) == 0 else sorted(levels_list)}',
+        f'Снятые уровни: {'нету' if len(dismissed_levels) == 0 else sorted(dismissed_levels)}'
+    ]
 
-    sorted_bonus_list = sorted(sorted(result_list, key=itemgetter(2)), key=itemgetter(3), reverse=True)
+    sorted_bonus_list = sorted(result_list, key = lambda x: (-x[3], x[2]))
     bonus_output_list = ['С бонусами:'] + [format_line(i, a, True) for i, a in enumerate(sorted_bonus_list)]
 
-    sorted_nobonus_list = sorted(sorted(result_list, key=itemgetter(1)), key=itemgetter(3), reverse=True)
+    sorted_nobonus_list = sorted(result_list, key = lambda x: (-x[3], x[1]))
     nobonus_output_list = ['Без бонусов:'] + [format_line(i, a, False) for i, a in enumerate(sorted_nobonus_list)]
 
-    return bonus_output_list, nobonus_output_list
+    return header, bonus_output_list, nobonus_output_list
