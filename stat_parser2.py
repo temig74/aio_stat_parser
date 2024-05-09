@@ -35,7 +35,7 @@ def parse_en_stat2(my_url, levels_list):
     def get_stat_item(x):
         finished_at = datetime_from_seconds(x['ActionTime']['Value'])
         bonus_time = -x['Corrections']['CorrectionValue']['TotalSeconds'] if x['Corrections'] is not None else 0
-        return x['TeamName'], x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
+        return x['TeamName'] or x['UserName'], x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
 
     date_start = datetime_from_seconds(json['Game']['StartDateTime']['Value'])
     for level in json['StatItems']:
