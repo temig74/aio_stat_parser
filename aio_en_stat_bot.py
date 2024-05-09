@@ -12,7 +12,7 @@ from stat_parser2 import parse_en_stat2
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=config.bot_token.get_secret_value())
 dp = Dispatcher()
-example = '<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>'
+example = '<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>\n<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>'
 
 @dp.message(Command(commands=['start', 'help']))
 async def cmd_start(message: types.Message):
@@ -34,23 +34,15 @@ async def cmd_stat(message: types.Message, command: CommandObject):
             else:
                 level_nums.append(int(elem))
         result = parse_en_stat2(command.args.split()[0], level_nums)
-        result_str = ''
 
-        for res in result[0]:
-            result_str += res+'\n'
-            if len(result_str) > config.max_message_len:
-                await message.answer('<code>'+html.escape(result_str)+'</code>', parse_mode='HTML')
-                result_str = ''
-        await message.answer('<code>'+html.escape(result_str)+'</code>', parse_mode='HTML')
-
-        result_str = ''
-
-        for res in result[1]:
-            result_str += res + '\n'
-            if len(result_str) > config.max_message_len:
-                await message.answer('<code>'+html.escape(result_str)+'</code>', parse_mode='HTML')
-                result_str = ''
-        await message.answer('<code>'+html.escape(result_str)+'</code>', parse_mode='HTML')
+        for entry in result:
+            result_str = ''
+            for line in entry:
+                result_str += line + '\n'
+                if len(result_str) > config.max_message_len:
+                    await message.answer('<code>'+html.escape(result_str)+'</code>', parse_mode='HTML')
+                    result_str = ''
+            await message.answer('<code>'+html.escape(result_str)+'</code>', parse_mode='HTML')
     except:
         await message.answer(f'Ошибка, возможно неверный формат ввода или некорректная статистика.\nПример ввода:\n{example}', parse_mode='HTML')
     print(f'aiogram обработал за {datetime.datetime.now() - starttime}')
