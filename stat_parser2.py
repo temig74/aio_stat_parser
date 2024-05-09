@@ -32,14 +32,14 @@ def parse_en_stat2(my_url, levels_list):
         # но все равно возьмем время с миллисекундами для более точных результатов
         return datetime(1, 1, 1) + timedelta(milliseconds=round(milliseconds_from_zero_year))
 
-    def extractor(x):
+    def get_stat_item(x):
         finished_at = datetime_from_seconds(x['ActionTime']['Value'])
         bonus_time = -x['Corrections']['CorrectionValue']['TotalSeconds'] if x['Corrections'] is not None else 0
         return x['TeamName'], x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
 
     date_start = datetime_from_seconds(json['Game']['StartDateTime']['Value'])
     for level in json['StatItems']:
-        stat_list.extend(map(extractor, level))
+        stat_list.extend(get_stat_item(x) for x in level)
     dismissed_levels = set(x['LevelNumber'] for x in json['Levels'] if x['Dismissed'])
 
     for a in stat_list:
