@@ -61,7 +61,6 @@ def parse_en_stat2(my_url, levels_list):
             # уровень снят - игнорим
             if elem.parent.has_attr('style') and elem.parent['style'] == 'background-color:#000;':
                 dismissed_levels.add(level)
-                continue
             level_order = int(elem.find('div', class_='n').text) if (elem.find('div', class_='n') is not None) else level
             team = elem.find('a').text
             up_date = re.findall(r'\d\d\.\d\d\.\d\d\d\d', str(elem))  # 12.11.2022
