@@ -1,6 +1,6 @@
 Парсер статы для encounter. Пример использования:
 
-`/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99`
+`/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109`
 
 `/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99`
 
