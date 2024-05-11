@@ -15,7 +15,7 @@ example = '<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>\n<c
 
 @dp.message(Command(commands=['start', 'help']))
 async def cmd_start(message: types.Message):
-    print(f'{message.from_user.username} {message.from_user.first_name} {message.from_user.last_name} {message.chat.id}\n{message.text}')
+    print(f'{message.from_user.username} {message.from_user.full_name} {message.chat.id}\n{message.text}')
     await message.answer(f'Temig stat parser\nПример:\n{example}', parse_mode='HTML')
 
 
