@@ -1,11 +1,10 @@
 import asyncio
-import datetime
+import html
 import logging
-from aiogram import Bot, Dispatcher, types  # pip install aiogram
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters.command import Command
 from config_reader import config
 from aiogram.filters import CommandObject
-import html
 from stat_parser2 import parse_en_stat2
 
 
@@ -16,14 +15,13 @@ example = '<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>\n<c
 
 @dp.message(Command(commands=['start', 'help']))
 async def cmd_start(message: types.Message):
-    print(f'{message.from_user.username} {message.from_user.first_name} {message.from_user.last_name} {message.chat.id} \n {message.text}')
+    print(f'{message.from_user.username} {message.from_user.first_name} {message.from_user.last_name} {message.chat.id}\n{message.text}')
     await message.answer(f'Temig stat parser\nПример:\n{example}', parse_mode='HTML')
 
 
 @dp.message(Command('stat'))
 async def cmd_stat(message: types.Message, command: CommandObject):
-    print(f'{message.from_user.username} {message.from_user.first_name} {message.from_user.last_name} {message.chat.id} \n {message.text}')
-    starttime = datetime.datetime.now()
+    print(f'{message.from_user.username} {message.from_user.full_name} {message.chat.id}\n{message.text}')
     await message.answer('Считаю статистику, подождите...')
     try:
         level_nums = []
@@ -43,9 +41,9 @@ async def cmd_stat(message: types.Message, command: CommandObject):
                     await message.answer('<code>'+html.escape(result_str)+'</code>', parse_mode='HTML')
                     result_str = ''
             await message.answer('<code>'+html.escape(result_str)+'</code>', parse_mode='HTML')
-    except:
+    except Exception as ex:
+        print(ex)
         await message.answer(f'Ошибка, возможно неверный формат ввода или некорректная статистика.\nПример ввода:\n{example}', parse_mode='HTML')
-    print(f'aiogram обработал за {datetime.datetime.now() - starttime}')
 
 
 async def main():
