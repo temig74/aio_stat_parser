@@ -1,8 +1,6 @@
-from bs4 import BeautifulSoup #pip install beautifulsoup4
+import requests
 from string import Formatter
-import re
-from urllib.request import urlopen
-from operator import itemgetter
+from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
 
 def strfdelta(tdelta: timedelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s'):
@@ -22,63 +20,27 @@ def strfdelta(tdelta: timedelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s'):
 
 def parse_en_stat2(my_url, levels_list):
     result_dict = {}
-    my_url += '&sortfield=SpentSeconds&lang=ru'  # Сортируем по времени на уровне, на случай указанной последовательности
-    stat_list = []  # Список с кортежами всей статы распаршеной (с временами во сколько апнуты уровни и номерами уровней
+    stat_list = []  # Список с кортежами всей статы (с временами во сколько апнуты уровни и номерами уровней)
     new_stat_list = []  # Отсеянный список только с нужными номерами уровней и вычисленным временем уровня
+    url = urlparse(my_url)
+    gid = parse_qs(url.query)['gid'][0]
+    api_url = f'https://{url.hostname}/gamestatistics/full/{gid}?json=1'
+    json = requests.get(api_url, headers={"User-Agent": "dummy"}).json()
 
-    rs = urlopen(my_url)
-    html = BeautifulSoup(rs, 'html.parser')
-    rs.close()
+    def datetime_from_seconds(milliseconds_from_zero_year):
+        # в движке все расчеты идут по секундам (по словам музыканта)
+        # но все равно возьмем время с миллисекундами для более точных результатов
+        return datetime(1, 1, 1) + timedelta(milliseconds=round(milliseconds_from_zero_year))
 
-    '''
-        # получаем дату и время начала игры (старый способ, ниже новый из слайдера)
-        gamelink = html.find('a', id='lnkDomain').get('href')[:-1] + html.find('a', id='lnkGameName').get('href')
-        rs = urlopen(gamelink + '&lang=ru')
-        html2 = BeautifulSoup(rs, 'html.parser')
-        rs.close()
-        span_set = html2.find('table', class_='gameInfo').find_all('span')
-        for elem in span_set:
-            if elem.text == 'Начало игры':
-                date_start_str = re.search(r'\d\d\.\d\d\.\d\d\d\d \d*:\d\d:\d\d', elem.find_next().text).group(0)
-                date_start = datetime.strptime(date_start_str, '%d.%m.%Y %H:%M:%S')
-                break
-        '''
+    def get_stat_item(x):
+        finished_at = datetime_from_seconds(x['ActionTime']['Value'])
+        bonus_time = -x['Corrections']['CorrectionValue']['TotalSeconds'] if x['Corrections'] else 0
+        return x['TeamName'] or x['UserName'], x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
 
-    # window.sliderStartTime = '23.09.2023 08:00:00.000';
-    date_start = datetime.strptime(re.search(r"(?<=sliderStartTime = ').*(?=\';)", str(html))[0], '%d.%m.%Y %H:%M:%S.%f')
-
-    parse_data = html.find('table', id='GameStatObject_DataTable')
-    if not parse_data:
-        parse_data = html.find('table', id='GameStatObject2_DataTable')
-    #parse_set = html.find('table', id='GameStatObject_DataTable').find_all('tr')[1:-1]
-    parse_set = parse_data.find_all('tr')[1:-1]
-    dismissed_levels = set()
-    for a in parse_set:
-        level = 0
-        b = a.find_all('div', class_='dataCell')
-        for elem in b:
-            level += 1
-            # уровень снят - игнорим
-            if elem.parent.has_attr('style') and elem.parent['style'] == 'background-color:#000;':
-                dismissed_levels.add(level)
-            level_order = int(elem.find('div', class_='n').text) if (elem.find('div', class_='n') is not None) else level
-            team = elem.find('a').text
-            up_date = re.findall(r'\d\d\.\d\d\.\d\d\d\d', str(elem))  # 12.11.2022
-            up_time = re.findall(r'\d\d:\d\d:\d\d\.\d\d\d', str(elem))  # 12:11:11.000
-            up_datetime = datetime.strptime((up_date[0] + ' ' + up_time[0]), '%d.%m.%Y %H:%M:%S.%f')
-            bonus = re.findall(r'<br/>бонус[^<]*<', str(elem))
-            if len(bonus) == 1:
-                sec_bonus = eval(bonus[0][11:-1].replace(' ', '').replace('М', '*2592000+').replace('дн', '*86400+').replace('ч', '*3600+').replace('м', '*60+').replace('с', '*1+')[:-1])
-            else:
-                sec_bonus = 0
-            penalty = re.findall(r'<br/>штраф[^<]*<', str(elem))
-            if len(penalty) == 1:
-                sec_penalty = eval(
-                    penalty[0][11:-1].replace(' ', '').replace('М', '*2592000+').replace('дн', '*86400+').replace('ч', '*3600+').replace('м', '*60+').replace('с', '*1+')[:-1])
-            else:
-                sec_penalty = 0
-            sec_total = sec_penalty - sec_bonus
-            stat_list.append((team, level, up_datetime, sec_total, level_order))
+    date_start = datetime_from_seconds(json['Game']['StartDateTime']['Value'])
+    for level in json['StatItems']:
+        stat_list.extend(get_stat_item(x) for x in level)
+    dismissed_levels = set(x['LevelNumber'] for x in json['Levels'] if x['Dismissed'])
 
     for a in stat_list:
         if (a[1] in levels_list) or len(levels_list) == 0: # если уровни не заданы - считаем по всем
