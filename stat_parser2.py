@@ -1,7 +1,17 @@
+import re
 import requests
 from string import Formatter
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
+
+# https://stackoverflow.com/a/49986645/1656677
+regex_pattern = re.compile(pattern="["
+                           u"\U0001F600-\U0001F64F"  # emoticons
+                           u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+                           u"\U0001F680-\U0001F6FF"  # transport & map symbols
+                           u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+                           "]+", flags=re.UNICODE)
+
 
 def strfdelta(tdelta: timedelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s'):
     remainder = int(tdelta.total_seconds())
@@ -17,6 +27,11 @@ def strfdelta(tdelta: timedelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s'):
             values[field] = int(Quotient)
     values['mS'] = int(tdelta.microseconds / 1000)
     return f.format(fmt, **values)
+
+
+def deEmojify(text):
+    return regex_pattern.sub(r'?', text)
+
 
 def parse_en_stat2(my_url, levels_list):
     result_dict = {}
@@ -35,7 +50,7 @@ def parse_en_stat2(my_url, levels_list):
     def get_stat_item(x):
         finished_at = datetime_from_seconds(x['ActionTime']['Value'])
         bonus_time = -x['Corrections']['CorrectionValue']['TotalSeconds'] if x['Corrections'] else 0
-        return x['TeamName'] or x['UserName'], x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
+        return deEmojify(x['TeamName'] or x['UserName']), x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
 
     date_start = datetime_from_seconds(json['Game']['StartDateTime']['Value'])
     for level in json['StatItems']:
@@ -43,7 +58,7 @@ def parse_en_stat2(my_url, levels_list):
     dismissed_levels = set(x['LevelNumber'] for x in json['Levels'] if x['Dismissed'])
 
     for a in stat_list:
-        if (a[1] in levels_list) or len(levels_list) == 0: # если уровни не заданы - считаем по всем
+        if (a[1] in levels_list) or len(levels_list) == 0:  # если уровни не заданы - считаем по всем
             if a[4] == 1:  # если первый уровень, то нужно вычитать из времени начала игры
                 new_stat_list.append([a[0], a[1], a[2] - date_start, a[3]])
 
@@ -67,17 +82,17 @@ def parse_en_stat2(my_url, levels_list):
     def format_line(i, row, with_bonus):
         pos = str(i + 1).ljust(pos_width)
         team = row[0].ljust(team_width)
-        time = strfdelta(row[2] if with_bonus else row[1],'{H:02}:{M:02}:{S:02}.{mS:03}')
+        time = strfdelta(row[2] if with_bonus else row[1], '{H:02}:{M:02}:{S:02}.{mS:03}')
         return f'{pos} {team} {time} {row[3]}'
     header = [
         f'Статистика по уровням: {'все' if len(levels_list) == 0 else sorted(levels_list)}',
         f'Снятые уровни: {'нету' if len(dismissed_levels) == 0 else sorted(dismissed_levels)}'
     ]
 
-    sorted_bonus_list = sorted(result_list, key = lambda x: (-x[3], x[2]))
+    sorted_bonus_list = sorted(result_list, key=lambda x: (-x[3], x[2]))
     bonus_output_list = ['С бонусами:'] + [format_line(i, a, True) for i, a in enumerate(sorted_bonus_list)]
 
-    sorted_nobonus_list = sorted(result_list, key = lambda x: (-x[3], x[1]))
+    sorted_nobonus_list = sorted(result_list, key=lambda x: (-x[3], x[1]))
     nobonus_output_list = ['Без бонусов:'] + [format_line(i, a, False) for i, a in enumerate(sorted_nobonus_list)]
 
     return header, bonus_output_list, nobonus_output_list
