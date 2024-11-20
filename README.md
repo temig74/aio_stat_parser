@@ -4,6 +4,8 @@
 
 `/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99`
 
+`/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 доезд`
+
 `/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109`
 
 Для запуска нужно создать файл `.env`:
