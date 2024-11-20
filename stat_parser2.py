@@ -1,6 +1,6 @@
 import re
 import requests
-from string import Formatter
+# from string import Formatter
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
 
@@ -12,10 +12,9 @@ regex_pattern = re.compile(pattern="["
                            u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
                            "]+", flags=re.UNICODE)
 
-
+'''
 def strfdelta(tdelta: timedelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s'):
     remainder = int(tdelta.total_seconds())
-
     f = Formatter()
     desired_fields = [field_tuple[1] for field_tuple in f.parse(fmt)]
     possible_fields = ('W', 'D', 'H', 'M', 'S')
@@ -27,6 +26,25 @@ def strfdelta(tdelta: timedelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s'):
             values[field] = int(Quotient)
     values['mS'] = int(tdelta.microseconds / 1000)
     return f.format(fmt, **values)
+'''
+
+
+def format_timedelta(tdelta: timedelta):
+    seconds = tdelta.total_seconds()
+    sign = "-" if seconds < 0 else " "
+    seconds = abs(seconds)
+    milliseconds = int(round((seconds - int(seconds))*1000))
+    seconds = int(seconds)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{sign}{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}:{milliseconds:03d}"
+
+
+def get_json(my_url):
+    url = urlparse(my_url)
+    gid = parse_qs(url.query)['gid'][0]
+    api_url = f'https://{url.hostname}/gamestatistics/full/{gid}?json=1'
+    return requests.get(api_url, headers={"User-Agent": "dummy"}).json()
 
 
 def deEmojify(text):
@@ -37,10 +55,7 @@ def parse_en_stat2(my_url, levels_list):
     result_dict = {}
     stat_list = []  # Список с кортежами всей статы (с временами во сколько апнуты уровни и номерами уровней)
     new_stat_list = []  # Отсеянный список только с нужными номерами уровней и вычисленным временем уровня
-    url = urlparse(my_url)
-    gid = parse_qs(url.query)['gid'][0]
-    api_url = f'https://{url.hostname}/gamestatistics/full/{gid}?json=1'
-    json = requests.get(api_url, headers={"User-Agent": "dummy"}).json()
+    json = get_json(my_url)
 
     def datetime_from_seconds(milliseconds_from_zero_year):
         # в движке все расчеты идут по секундам (по словам музыканта)
@@ -82,7 +97,8 @@ def parse_en_stat2(my_url, levels_list):
     def format_line(i, row, with_bonus):
         pos = str(i + 1).ljust(pos_width)
         team = row[0].ljust(team_width)
-        time = strfdelta(row[2] if with_bonus else row[1], '{H:02}:{M:02}:{S:02}.{mS:03}')
+        # time = strfdelta(row[2] if with_bonus else row[1], '{H:02}:{M:02}:{S:02}.{mS:03}')
+        time = format_timedelta(row[2] if with_bonus else row[1])
         return f'{pos} {team} {time} {row[3]}'
     header = [
         f'Статистика по уровням: {'все' if len(levels_list) == 0 else sorted(levels_list)}',
@@ -96,3 +112,27 @@ def parse_en_stat2(my_url, levels_list):
     nobonus_output_list = ['Без бонусов:'] + [format_line(i, a, False) for i, a in enumerate(sorted_nobonus_list)]
 
     return header, bonus_output_list, nobonus_output_list
+
+
+def generate_csv(my_url, with_bonuses: bool):
+    json = get_json(my_url)
+    stat_d = {}
+    for level in json['StatItems']:
+        for statitem in level:
+            total_seconds = statitem['SpentLevelTime']['TotalSeconds']
+            if with_bonuses and statitem.get('Corrections'):
+                total_seconds -= statitem['Corrections']['CorrectionValue']['TotalSeconds']
+
+            sign = "-" if total_seconds < 0 else ''
+            total_seconds = abs(total_seconds)
+            minutes, seconds = divmod(total_seconds, 60)
+            hours, minutes = divmod(minutes, 60)
+            stat_d.setdefault(statitem['TeamName'], {})[statitem['LevelNum']] = f"{sign}{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+
+    file_text = ''
+    for i in range(0, json['Game']['LevelNumber']+1):
+        file_text += str(i)+';'
+    for team, values in stat_d.items():
+        file_text += '\n' + team + ';' + ';'.join(values.values())+';'
+
+    return file_text

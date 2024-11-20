@@ -4,6 +4,8 @@
 
 `/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99`
 
+`/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109`
+
 Для запуска нужно создать файл `.env`:
 ```
 BOT_TOKEN = ВАШ_ТОКЕН_ПОЛУЧЕННЫЙ_У_BOTFATHER
