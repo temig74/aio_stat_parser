@@ -51,11 +51,16 @@ def deEmojify(text):
     return regex_pattern.sub(r'?', text)
 
 
-def parse_en_stat2(my_url, levels_list):
+def parse_en_stat2(my_url, levels_list=[], level_text=''):
     result_dict = {}
     stat_list = []  # Список с кортежами всей статы (с временами во сколько апнуты уровни и номерами уровней)
     new_stat_list = []  # Отсеянный список только с нужными номерами уровней и вычисленным временем уровня
     json = get_json(my_url)
+
+    if level_text != '':
+        for level in json['Levels']:
+            if level_text.lower() in level['LevelName'].lower():
+                levels_list.append(level['LevelNumber'])
 
     def datetime_from_seconds(milliseconds_from_zero_year):
         # в движке все расчеты идут по секундам (по словам музыканта)

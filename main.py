@@ -12,7 +12,10 @@ from stat_parser2 import parse_en_stat2, generate_csv
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 bot = Bot(token=config.bot_token.get_secret_value())
 dp = Dispatcher()
-example = '<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>\n<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>\n<code>/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>\n'
+example = '''<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
+<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>
+<code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 доезд</code>
+<code>/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>'''
 
 
 def command_info(message: types.Message):
@@ -25,19 +28,23 @@ async def cmd_start(message: types.Message):
     await message.answer(f'Temig stat parser\nПример:\n{example}\nИмейте в виду, бот не учитывает вручную начисленные бонусы, у которых не проставлен номер уровня', parse_mode='HTML')
 
 
-@dp.message(Command('stat'))
+@dp.message(Command(commands=['stat', 'textstat']))
 async def cmd_stat(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Считаю статистику, подождите...')
     try:
-        level_nums = []
-        for elem in command.args.split()[1:]:
-            if '-' in elem:
-                for i in range(int(elem.split('-')[0]), int(elem.split('-')[1])+1):
-                    level_nums.append(i)
-            else:
-                level_nums.append(int(elem))
-        result = parse_en_stat2(command.args.split()[0], level_nums)
+        if command.command == 'stat':
+            level_nums = []
+            for elem in command.args.split()[1:]:
+                if '-' in elem:
+                    for i in range(int(elem.split('-')[0]), int(elem.split('-')[1])+1):
+                        level_nums.append(i)
+                else:
+                    level_nums.append(int(elem))
+            result = parse_en_stat2(command.args.split()[0], levels_list=level_nums)
+
+        if command.command == 'textstat':
+            result = parse_en_stat2(command.args.split()[0], level_text=command.args.split()[1])
 
         for entry in result:
             result_str = ''
@@ -58,10 +65,10 @@ async def cmd_csv(message: types.Message, command: CommandObject):
     await message.answer('Генерирую файл, подождите...')
     try:
         file_text = generate_csv(command.args.split()[0], True)
-        buf_file = types.BufferedInputFile(bytes(file_text, 'utf-8'), filename='with_bonuses.csv')
+        buf_file = types.BufferedInputFile(bytes(file_text, 'utf-8-sig'), filename='with_bonuses.csv')
         await message.answer_document(buf_file)
         file_text = generate_csv(command.args.split()[0], False)
-        buf_file = types.BufferedInputFile(bytes(file_text, 'utf-8'), filename='without_bonuses.csv')
+        buf_file = types.BufferedInputFile(bytes(file_text, 'utf-8-sig'), filename='without_bonuses.csv')
         await message.answer_document(buf_file)
     except Exception as ex:
         logging.error(ex)
