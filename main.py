@@ -33,18 +33,18 @@ async def cmd_stat(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Считаю статистику, подождите...')
     try:
+        level_nums = []
         if command.command == 'stat':
-            level_nums = []
             for elem in command.args.split()[1:]:
                 if '-' in elem:
                     for i in range(int(elem.split('-')[0]), int(elem.split('-')[1])+1):
                         level_nums.append(i)
                 else:
                     level_nums.append(int(elem))
-            result = parse_en_stat2(command.args.split()[0], levels_list=level_nums)
+            result = parse_en_stat2(command.args.split()[0], level_nums)
 
         if command.command == 'textstat':
-            result = parse_en_stat2(command.args.split()[0], level_text=command.args.split()[1])
+            result = parse_en_stat2(command.args.split()[0], command.args.split()[1])
 
         for entry in result:
             result_str = ''
