@@ -3,6 +3,8 @@ import requests
 # from string import Formatter
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
+
 
 # https://stackoverflow.com/a/49986645/1656677
 regex_pattern = re.compile(pattern="["
@@ -59,9 +61,25 @@ def parse_en_stat2(my_url, levels):
     levels_list = []
 
     if type(levels) is str:
-        for level in json['Levels']:
-            if levels.lower() in level['LevelName'].lower():
-                levels_list.append(level['LevelNumber'])
+        # не работает, если стоит галка "скрыть названия уровней до конца игры"
+        if json['IsLevelNamesVisible']:
+            for level in json['Levels']:
+                if levels.lower() in level['LevelName'].lower():
+                    levels_list.append(level['LevelNumber'])
+        else:
+            url = urlparse(my_url)
+            gid = parse_qs(url.query)['gid'][0]
+            stat_url = f'https://{url.hostname}/GameStat.aspx?gid={gid}&sortfield=SpentSeconds'
+            rs = requests.get(stat_url, headers={"User-Agent": "dummy"})
+            html = BeautifulSoup(rs.text, 'html.parser')
+            parse_levels = html.find('tr', class_='levelsRow').find_all('td')
+
+            for td in parse_levels[1:-3]:
+                for span in td.find_all('span', class_='dismissed'):
+                    span.decompose()
+                text = td.get_text(strip=True)
+                if levels.lower() in text.lower():
+                    levels_list.append(int(text.split(':')[0]))
 
     elif type(levels) is list:
         levels_list = levels
