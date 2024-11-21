@@ -59,12 +59,16 @@ def parse_en_stat2(my_url, levels):
     new_stat_list = []  # Отсеянный список только с нужными номерами уровней и вычисленным временем уровня
     json = get_json(my_url)
     levels_list = []
+    if json['Game']['LevelsSequenceId'] == 3:
+        return ['Ошибка: не применимо в штурмовой последовательности'],[]
 
     if type(levels) is str:
         # не работает, если стоит галка "скрыть названия уровней до конца игры"
         if json['IsLevelNamesVisible']:
             for level in json['Levels']:
-                if levels.lower() in level['LevelName'].lower():
+                if levels[0] == '-' and levels[1:].lower() not in level['LevelName'].lower():
+                    levels_list.append(level['LevelNumber'])
+                elif levels.lower() in level['LevelName'].lower():
                     levels_list.append(level['LevelNumber'])
         else:
             url = urlparse(my_url)
@@ -78,7 +82,9 @@ def parse_en_stat2(my_url, levels):
                 for span in td.find_all('span', class_='dismissed'):
                     span.decompose()
                 text = td.get_text(strip=True)
-                if levels.lower() in text.lower():
+                if levels[0] == '-' and levels[1:].lower() not in text.lower():
+                    levels_list.append(int(text.split(':')[0]))
+                elif levels.lower() in text.lower():
                     levels_list.append(int(text.split(':')[0]))
 
     elif type(levels) is list:

@@ -14,7 +14,8 @@ bot = Bot(token=config.bot_token.get_secret_value())
 dp = Dispatcher()
 example = '''<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
 <code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>
-<code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 доезд</code>
+<code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 доезд</code> (только доезды)
+<code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 -доезд</code> (исключить доезды)
 <code>/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>'''
 
 
