@@ -25,7 +25,7 @@ def command_info(message: types.Message):
 @dp.message(Command(commands=['start', 'help']))
 async def cmd_start(message: types.Message):
     logging.info(command_info(message))
-    await message.answer(f'Temig stat parser\nПример:\n{example}\nИмейте в виду, бот не учитывает вручную начисленные бонусы, у которых не проставлен номер уровня', parse_mode='HTML')
+    await message.answer(f'Temig stat parser\nПример:\n{example}\nИмейте в виду, бот не учитывает вручную начисленные бонусы, у которых не проставлен номер уровня. Также, некорректно считать штурмовую последовательность.', parse_mode='HTML')
 
 
 @dp.message(Command(commands=['stat', 'textstat']))
