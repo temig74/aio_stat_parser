@@ -60,7 +60,7 @@ def parse_en_stat2(my_url, levels):
     json = get_json(my_url)
     levels_list = []
     if json['Game']['LevelsSequenceId'] == 3:
-        return ['Ошибка: не применимо в штурмовой последовательности'],[]
+        return ['Ошибка: не применимо в штурмовой последовательности'], []
 
     if type(levels) is str:
         # не работает, если стоит галка "скрыть названия уровней до конца игры"
@@ -160,7 +160,7 @@ def generate_csv(my_url, with_bonuses: bool):
             total_seconds = abs(total_seconds)
             minutes, seconds = divmod(total_seconds, 60)
             hours, minutes = divmod(minutes, 60)
-            stat_d.setdefault(statitem['TeamName'], {})[statitem['LevelNum']] = f"{sign}{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+            stat_d.setdefault(statitem['TeamName'] or statitem['UserName'], {})[statitem['LevelNum']] = f"{sign}{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
 
     file_text = ''
     for i in range(0, json['Game']['LevelNumber']+1):
