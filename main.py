@@ -38,7 +38,7 @@ async def cmd_stat(message: types.Message, command: CommandObject):
         if command.command == 'stat':
             result = parse_en_stat2(command.args.split()[0], command.args.split()[1:], 'by_nums')
         elif command.command == 'textstat':
-            result = parse_en_stat2(command.args.split()[0], command.args.split()[1:], 'by_text')
+            result = parse_en_stat2(command.args.split()[0], command.args.lower().split()[1:], 'by_text')
         for entry in result:
             result_str = ''
             for line in entry:
