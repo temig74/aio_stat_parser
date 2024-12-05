@@ -4,6 +4,7 @@ import requests
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+from emoji import replace_emoji
 
 
 def format_timedelta(tdelta: timedelta):
@@ -24,6 +25,7 @@ def get_json(my_url):
     return requests.get(api_url, headers={"User-Agent": "dummy"}).json()
 
 
+'''
 def deEmojify(text):
     # https://stackoverflow.com/a/49986645/1656677
     regex_pattern = re.compile(pattern="["
@@ -33,6 +35,7 @@ def deEmojify(text):
                                        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
                                        "]+", flags=re.UNICODE)
     return regex_pattern.sub(r'?', text)
+'''
 
 
 def parse_en_stat2(my_url, levels_text, search_type):
@@ -90,7 +93,8 @@ def parse_en_stat2(my_url, levels_text, search_type):
     def get_stat_item(x):
         finished_at = datetime_from_seconds(x['ActionTime']['Value'])
         bonus_time = -x['Corrections']['CorrectionValue']['TotalSeconds'] if x['Corrections'] else 0
-        return deEmojify(x['TeamName'] or x['UserName']), x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
+        # return deEmojify(x['TeamName'] or x['UserName']), x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
+        return replace_emoji(x['TeamName'] or x['UserName'], replace=''), x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
 
     date_start = datetime_from_seconds(json['Game']['StartDateTime']['Value'])
     stat_list = []  # (участник0, номер_ур1, время_завершения2, бонус3, порядок выдачи4)
@@ -117,7 +121,14 @@ def parse_en_stat2(my_url, levels_text, search_type):
         else:
             result_dict[a[0]] = [a[2], 1, a[2] + timedelta(seconds=a[3])]
 
-    result_list = [(a, result_dict[a][0], result_dict[a][2], result_dict[a][1]) for a in result_dict]
+    result_list = [[a, result_dict[a][0], result_dict[a][2], result_dict[a][1]] for a in result_dict]
+
+    '''
+    cut_num = 13
+    for elem in result_list:
+        if len(elem[0]) > cut_num:
+            elem[0] = elem[0][:cut_num]
+    '''
 
     # посчитаем максимальную ширину столбцов "место" и "команда" для выравнивания
     team_width = max(len(a[0]) for a in result_list)
