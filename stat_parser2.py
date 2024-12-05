@@ -6,31 +6,6 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 
 
-# https://stackoverflow.com/a/49986645/1656677
-regex_pattern = re.compile(pattern="["
-                           u"\U0001F600-\U0001F64F"  # emoticons
-                           u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-                           u"\U0001F680-\U0001F6FF"  # transport & map symbols
-                           u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                           "]+", flags=re.UNICODE)
-
-'''
-def strfdelta(tdelta: timedelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s'):
-    remainder = int(tdelta.total_seconds())
-    f = Formatter()
-    desired_fields = [field_tuple[1] for field_tuple in f.parse(fmt)]
-    possible_fields = ('W', 'D', 'H', 'M', 'S')
-    constants = {'W': 604800, 'D': 86400, 'H': 3600, 'M': 60, 'S': 1}
-    values = {}
-    for field in possible_fields:
-        if field in desired_fields and field in constants:
-            Quotient, remainder = divmod(remainder, constants[field])
-            values[field] = int(Quotient)
-    values['mS'] = int(tdelta.microseconds / 1000)
-    return f.format(fmt, **values)
-'''
-
-
 def format_timedelta(tdelta: timedelta):
     seconds = tdelta.total_seconds()
     sign = "-" if seconds < 0 else " "
@@ -50,26 +25,38 @@ def get_json(my_url):
 
 
 def deEmojify(text):
+    # https://stackoverflow.com/a/49986645/1656677
+    regex_pattern = re.compile(pattern="["
+                                       u"\U0001F600-\U0001F64F"  # emoticons
+                                       u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+                                       u"\U0001F680-\U0001F6FF"  # transport & map symbols
+                                       u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+                                       "]+", flags=re.UNICODE)
     return regex_pattern.sub(r'?', text)
 
 
-def parse_en_stat2(my_url, levels):
-    result_dict = {}
-    stat_list = []  # Список с кортежами всей статы (с временами во сколько апнуты уровни и номерами уровней)
-    new_stat_list = []  # Отсеянный список только с нужными номерами уровней и вычисленным временем уровня
+def parse_en_stat2(my_url, levels_text, search_type):
     json = get_json(my_url)
-    levels_list = []
     if json['Game']['LevelsSequenceId'] == 3:
         return ['Ошибка: не применимо в штурмовой последовательности'], []
+    levels_list = []  # Список уровней, по которым считать стату
+    level_count = json['Game']['LevelNumber']  # количество уровней в игре
 
-    if type(levels) is str:
-        # не работает, если стоит галка "скрыть названия уровней до конца игры"
-        if json['IsLevelNamesVisible']:
-            for level in json['Levels']:
-                if levels[0] == '-' and levels[1:].lower() not in level['LevelName'].lower():
-                    levels_list.append(level['LevelNumber'])
-                elif levels.lower() in level['LevelName'].lower():
-                    levels_list.append(level['LevelNumber'])
+    if search_type == 'by_nums':  # исключение и добавление уровней по номеру (для команды /stat)
+        for elem in levels_text:
+            if elem[0] == '-':
+                levels_list.remove(int(elem[1:]))
+            elif '-' in elem:
+                for i in range(int(elem.split('-')[0]), int(elem.split('-')[1]) + 1):
+                    if level_count < i:  # если задали номер уровня больше, чем есть
+                        break
+                    levels_list.append(i)
+            elif int(elem) <= level_count:
+                levels_list.append(int(elem))
+
+    elif search_type == 'by_text':  # исключение и добавление уровней по тексту (для команды /textstat)
+        if not json['Game']['HideLevelsNames']:  # названия уровней есть в json, если не стоит галка "скрыть названия уровней до конца игры"
+            levelnames = [f"{level['LevelNumber']}: {level['LevelName'].lower()}" for level in json['Levels']]
         else:
             url = urlparse(my_url)
             gid = parse_qs(url.query)['gid'][0]
@@ -77,18 +64,23 @@ def parse_en_stat2(my_url, levels):
             rs = requests.get(stat_url, headers={"User-Agent": "dummy"})
             html = BeautifulSoup(rs.text, 'html.parser')
             parse_levels = html.find('tr', class_='levelsRow').find_all('td')
-
+            levelnames = []
             for td in parse_levels[1:-3]:
                 for span in td.find_all('span', class_='dismissed'):
                     span.decompose()
-                text = td.get_text(strip=True)
-                if levels[0] == '-' and levels[1:].lower() not in text.lower():
-                    levels_list.append(int(text.split(':')[0]))
-                elif levels.lower() in text.lower():
-                    levels_list.append(int(text.split(':')[0]))
+                levelnames.append(td.get_text(strip=True).lower())
 
-    elif type(levels) is list:
-        levels_list = levels
+        if levels_text[0][0] == '-':
+            levels_list = list(range(1, level_count+1))
+            for levelname in levelnames:
+                for elem in levels_text:
+                    if elem[1:] in levelname:
+                        levels_list.remove(int(levelname.split(':')[0]))
+        else:
+            for levelname in levelnames:
+                for elem in levels_text:
+                    if elem in levelname:
+                        levels_list.append(int(levelname.split(':')[0]))
 
     def datetime_from_seconds(milliseconds_from_zero_year):
         # в движке все расчеты идут по секундам (по словам музыканта)
@@ -101,20 +93,24 @@ def parse_en_stat2(my_url, levels):
         return deEmojify(x['TeamName'] or x['UserName']), x['LevelNum'], finished_at, bonus_time, x['LevelOrder']
 
     date_start = datetime_from_seconds(json['Game']['StartDateTime']['Value'])
+    stat_list = []  # (участник0, номер_ур1, время_завершения2, бонус3, порядок выдачи4)
     for level in json['StatItems']:
         stat_list.extend(get_stat_item(x) for x in level)
     dismissed_levels = set(x['LevelNumber'] for x in json['Levels'] if x['Dismissed'])
 
+    new_stat_list = []  # Отсеянный список только с нужными номерами уровней: [участник0, номер_ур1, время_ур2, бонус3]
+
     for a in stat_list:
-        if (a[1] in levels_list) or len(levels_list) == 0:  # если уровни не заданы - считаем по всем
+        if (a[1] in levels_list) or len(levels_list) == 0:  # если уровень в списке, или уровни не заданы
             if a[4] == 1:  # если первый уровень, то нужно вычитать из времени начала игры
                 new_stat_list.append([a[0], a[1], a[2] - date_start, a[3]])
+            else:
+                for b in stat_list:
+                    if b[0] == a[0] and b[4] == a[4] - 1:  # если одинаковая команда и порядок выдачи перед текущим, то считаем время уровня и обрываем цикл
+                        new_stat_list.append([a[0], a[1], a[2] - b[2], a[3]])
+                        break
 
-            for b in stat_list:
-                if b[0] == a[0] and b[4] == a[4] - 1:  # если одинаковая команда и порядок выдачи перед текущим, то считаем время уровня и обрываем цикл
-                    new_stat_list.append([a[0], a[1], a[2] - b[2], a[3]])
-                    break
-
+    result_dict = {}  # {команда: [общее время, кол-во пройденных уровней, время с бонусами]}
     for a in new_stat_list:
         if a[0] in result_dict:
             result_dict[a[0]] = [result_dict[a[0]][0] + a[2], result_dict[a[0]][1] + 1, result_dict[a[0]][2] + a[2] + timedelta(seconds=a[3])]
@@ -130,7 +126,6 @@ def parse_en_stat2(my_url, levels):
     def format_line(i, row, with_bonus):
         pos = str(i + 1).ljust(pos_width)
         team = row[0].ljust(team_width)
-        # time = strfdelta(row[2] if with_bonus else row[1], '{H:02}:{M:02}:{S:02}.{mS:03}')
         time = format_timedelta(row[2] if with_bonus else row[1])
         return f'{pos} {team} {time} {row[3]}'
     header = [

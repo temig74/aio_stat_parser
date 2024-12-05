@@ -14,8 +14,9 @@ bot = Bot(token=config.bot_token.get_secret_value())
 dp = Dispatcher()
 example = '''<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
 <code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>
-<code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 доезд</code> (только доезды)
-<code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 -доезд</code> (исключить доезды)
+<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 -22 -35 -52 -68 -78 -79 -80</code> (уровни 1-103, за исключением 22 3552 68 78 79 80)
+<code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 доезд QRV</code> (только доезды и QRV)
+<code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 -доезд -QRV</code> (исключить доезды и QRV)
 <code>/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>'''
 
 
@@ -34,19 +35,10 @@ async def cmd_stat(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Считаю статистику, подождите...')
     try:
-        level_nums = []
         if command.command == 'stat':
-            for elem in command.args.split()[1:]:
-                if '-' in elem:
-                    for i in range(int(elem.split('-')[0]), int(elem.split('-')[1])+1):
-                        level_nums.append(i)
-                else:
-                    level_nums.append(int(elem))
-            result = parse_en_stat2(command.args.split()[0], level_nums)
-
-        if command.command == 'textstat':
-            result = parse_en_stat2(command.args.split()[0], command.args.split()[1])
-
+            result = parse_en_stat2(command.args.split()[0], command.args.split()[1:], 'by_nums')
+        elif command.command == 'textstat':
+            result = parse_en_stat2(command.args.split()[0], command.args.split()[1:], 'by_text')
         for entry in result:
             result_str = ''
             for line in entry:
