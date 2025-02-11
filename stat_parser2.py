@@ -18,10 +18,10 @@ def format_timedelta(tdelta: timedelta):
     return f"{sign}{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}:{milliseconds:03d}"
 
 
-def get_json(my_url):
+def get_json(my_url, page_num):
     url = urlparse(my_url)
     gid = parse_qs(url.query)['gid'][0]
-    api_url = f'https://{url.hostname}/gamestatistics/full/{gid}?json=1'
+    api_url = f'https://{url.hostname}/gamestatistics/full/{gid}?json=1&page={page_num}'
     return requests.get(api_url, headers={"User-Agent": "dummy"}).json()
 
 
@@ -39,7 +39,15 @@ def deEmojify(text):
 
 
 def parse_en_stat2(my_url, levels_text, search_type):
-    json = get_json(my_url)
+    json_list = []
+    for i in range(1, 10):
+        print(f'{my_url}&page={i}')
+        json_elem = get_json(my_url, i)
+        if json_elem['StatItems'][0]:
+            json_list.append(json_elem)
+        else:
+            break
+    json = json_list[0]
     if json['Game']['LevelsSequenceId'] == 3:
         return ['Ошибка: не применимо в штурмовой последовательности'], []
     levels_list = []  # Список уровней, по которым считать стату
@@ -98,8 +106,12 @@ def parse_en_stat2(my_url, levels_text, search_type):
 
     date_start = datetime_from_seconds(json['Game']['StartDateTime']['Value'])
     stat_list = []  # (участник0, номер_ур1, время_завершения2, бонус3, порядок выдачи4)
-    for level in json['StatItems']:
-        stat_list.extend(get_stat_item(x) for x in level)
+
+    for json in json_list:
+        for level in json['StatItems']:
+            for level_elem in level:
+                print(f'{level_elem['UserName']} {level_elem['LevelNum']}')
+            stat_list.extend(get_stat_item(x) for x in level)
     dismissed_levels = set(x['LevelNumber'] for x in json['Levels'] if x['Dismissed'])
 
     new_stat_list = []  # Отсеянный список только с нужными номерами уровней: [участник0, номер_ур1, время_ур2, бонус3]
