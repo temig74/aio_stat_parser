@@ -40,8 +40,8 @@ def deEmojify(text):
 
 def parse_en_stat2(my_url, levels_text, search_type):
     json_list = []
-    for i in range(1, 10):
-        print(f'{my_url}&page={i}')
+    MAX_PAGES = 10
+    for i in range(1, MAX_PAGES):
         json_elem = get_json(my_url, i)
         if json_elem['StatItems'][0]:
             json_list.append(json_elem)
@@ -109,8 +109,6 @@ def parse_en_stat2(my_url, levels_text, search_type):
 
     for json in json_list:
         for level in json['StatItems']:
-            for level_elem in level:
-                print(f'{level_elem['UserName']} {level_elem['LevelNum']}')
             stat_list.extend(get_stat_item(x) for x in level)
     dismissed_levels = set(x['LevelNumber'] for x in json['Levels'] if x['Dismissed'])
 
