@@ -16,23 +16,32 @@ def format_timedelta(tdelta: timedelta):
     return f"{sign}{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}:{milliseconds:03d}"
 
 
-def get_json(my_url, page_num):
+def get_json(my_url):
     url = urlparse(my_url)
     gid = parse_qs(url.query)['gid'][0]
-    api_url = f'https://{url.hostname}/gamestatistics/full/{gid}?json=1&page={page_num}'
-    return requests.get(api_url, headers={"User-Agent": "dummy"}).json()
+
+    json = None
+    MAX_PAGES = 10
+    with requests.Session() as session:
+        for i in range(1, MAX_PAGES):
+            api_url = f'https://{url.hostname}/gamestatistics/full/{gid}?json=1&page={i}'
+            response = session.get(api_url, headers={"User-Agent": "dummy"}).json()
+            if i == 1:
+                json = response
+
+            # do not proceed with next page if no stat items for this page
+            if not response['StatItems'][0]:
+                break
+
+            # merge StatItems into first page
+            if i > 1:
+                for i in range(0, len(response['StatItems'])):
+                    json['StatItems'][i].extend(response['StatItems'][i])
+    return json
 
 
 def parse_en_stat2(my_url, levels_text, search_type):
-    json_list = []
-    MAX_PAGES = 10
-    for i in range(1, MAX_PAGES):
-        json_elem = get_json(my_url, i)
-        if json_elem['StatItems'][0]:
-            json_list.append(json_elem)
-        else:
-            break
-    json = json_list[0]
+    json = get_json(my_url)
     if json['Game']['LevelsSequenceId'] == 3:
         return ['Ошибка: не применимо в штурмовой последовательности'], []
     levels_list = []  # Список уровней, по которым считать стату
@@ -91,9 +100,8 @@ def parse_en_stat2(my_url, levels_text, search_type):
     date_start = datetime_from_seconds(json['Game']['StartDateTime']['Value'])
     stat_list = []  # (участник0, номер_ур1, время_завершения2, бонус3, порядок выдачи4)
 
-    for json in json_list:
-        for level in json['StatItems']:
-            stat_list.extend(get_stat_item(x) for x in level)
+    for level in json['StatItems']:
+        stat_list.extend(get_stat_item(x) for x in level)
     dismissed_levels = set(x['LevelNumber'] for x in json['Levels'] if x['Dismissed'])
 
     new_stat_list = []  # Отсеянный список только с нужными номерами уровней: [участник0, номер_ур1, время_ур2, бонус3]
