@@ -1,6 +1,10 @@
-import requests
-from urllib.parse import urlparse, parse_qs
+import re
 from datetime import datetime, timedelta
+from itertools import groupby
+from time import sleep
+from urllib.parse import parse_qs, urlparse
+
+import requests
 from bs4 import BeautifulSoup
 from emoji import replace_emoji
 
@@ -170,3 +174,38 @@ def generate_csv(my_url, with_bonuses: bool):
         file_text += '\n' + team + ';' + ';'.join(values.values())+';'
 
     return file_text
+
+
+def get_rate(my_url: str):
+    gid = parse_qs(urlparse(my_url).query)['gid'][0]
+    with requests.Session() as session:
+        all_teams = session.get(f'https://world.en.cx/ALoader/GameLoader.aspx?gid={gid}&item=3', headers={'User-Agent': 'dummy'})
+        html = BeautifulSoup(all_teams.text, 'html.parser')
+        rates = []
+        for team in html.find_all(id='lnkPlayerInfo'):
+            team_name = team.get_text(strip=True)
+            href = urlparse(team['href'])
+            tid = parse_qs(href.query)['tid'][0]
+            rates_url = f'https://world.en.cx/ALoader/FormulaDetails.aspx?gid={gid}&tid={tid}&mode=0'
+            team_players = session.get(rates_url, headers={'User-Agent': 'dummy'})
+            rates_doc = BeautifulSoup(team_players.text, 'html.parser')
+            for p in rates_doc.find_all(class_='toWinnerItem'):
+                player_node = p.find('a', href=re.compile(r'uid=\d+'))
+                player_rate = p.find('td', class_='pink').get_text(strip=True)
+                player_name = player_node.get_text(strip=True)
+                player_weight = p.find('td', class_='yellow_lihgt').get_text(strip=True)
+                rates.append((int(player_rate), team_name, player_name, float(player_weight)))
+            sleep(0.2)
+        if not len(rates):
+            return '-'
+
+        result = []
+        for key, group in groupby(rates, lambda x: x[1]): # group by team
+            for entry in group:
+                result.append(f'{str(entry[0]).ljust(2)} {entry[1]} {entry[2]}')
+            result.append('') # separate teams by line break
+        # unweighted rate
+        result.append('ИТОГ: ' + str(round(sum([x[0] for x in rates]) / len(rates), 2)))
+        # weighted rate
+        result.append('ИТОГ(+вес): ' + str(round(sum([x[0] * x[3] for x in rates]) / sum([x[3] for x in rates]), 2)))
+        return result
