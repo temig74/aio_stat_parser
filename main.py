@@ -2,12 +2,13 @@ import asyncio
 import html
 import logging
 import sys
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters.command import Command
-from config_reader import config
-from aiogram.filters import CommandObject
-from stat_parser2 import parse_en_stat2, generate_csv
 
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import CommandObject
+from aiogram.filters.command import Command
+
+from config_reader import config
+from stat_parser2 import generate_csv, get_rate, parse_en_stat2
 
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 bot = Bot(token=config.bot_token.get_secret_value())
@@ -19,6 +20,7 @@ example = '''<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
 <code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 -доезд -QRV</code> (исключить доезды и QRV)
 <code>/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>'''
 
+example2 = '<code>/rates https://dozorekb.en.cx/GameDetails.aspx?gid=76109</code>'
 
 def command_info(message: types.Message):
     return f'@{message.from_user.username} ({message.from_user.full_name or 'N/A'}) {message.chat.id}\n{message.text}'
@@ -27,7 +29,7 @@ def command_info(message: types.Message):
 @dp.message(Command(commands=['start', 'help']))
 async def cmd_start(message: types.Message):
     logging.info(command_info(message))
-    await message.answer(f'Temig stat parser\nПример:\n{example}\nИмейте в виду, бот не учитывает вручную начисленные бонусы, у которых не проставлен номер уровня. Также, некорректно считать штурмовую последовательность.', parse_mode='HTML')
+    await message.answer(f'Temig stat parser\nПример:\n{example}\nИмейте в виду, бот не учитывает вручную начисленные бонусы, у которых не проставлен номер уровня. Также, некорректно считать штурмовую последовательность.\n\nУзнать все оценки за игру:\n{example2}', parse_mode='HTML')
 
 
 @dp.message(Command(commands=['stat', 'textstat']))
@@ -66,6 +68,17 @@ async def cmd_csv(message: types.Message, command: CommandObject):
     except Exception as ex:
         logging.error(ex)
         await message.answer(f'Ошибка, возможно неверный формат ввода или некорректная статистика.\nПример ввода:\n{example}', parse_mode='HTML')
+
+@dp.message(Command('rates'))
+async def cmd_marks(message: types.Message, command: CommandObject):
+    logging.info(command_info(message))
+    await message.answer('Получаю оценки...')
+    try:
+        marks = get_rate(command.args.split()[0])
+        await message.answer('<code>' + html.escape('\n'.join(marks)) + '</code>', parse_mode='HTML')
+    except Exception as ex:
+        logging.error(ex)
+        await message.answer('Ошибка :(', parse_mode='HTML')
 
 
 async def main():
