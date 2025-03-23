@@ -176,7 +176,7 @@ def generate_csv(my_url, with_bonuses: bool):
     return file_text
 
 
-def get_rate(my_url: str):
+def get_rates(my_url: str):
     gid = parse_qs(urlparse(my_url).query)['gid'][0]
     with requests.Session() as session:
         all_teams = session.get(f'https://world.en.cx/ALoader/GameLoader.aspx?gid={gid}&item=3', headers={'User-Agent': 'dummy'})
@@ -197,7 +197,7 @@ def get_rate(my_url: str):
                 rates.append((int(player_rate), team_name, player_name, float(player_weight)))
             sleep(0.2)
         if not len(rates):
-            return '-'
+            return []
 
         result = []
         for key, group in groupby(rates, lambda x: x[1]): # group by team
