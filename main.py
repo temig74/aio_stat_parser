@@ -8,7 +8,7 @@ from aiogram.filters import CommandObject
 from aiogram.filters.command import Command
 
 from config_reader import config
-from stat_parser2 import generate_csv, get_rate, parse_en_stat2
+from stat_parser2 import generate_csv, get_rates, parse_en_stat2
 
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 bot = Bot(token=config.bot_token.get_secret_value())
@@ -74,8 +74,11 @@ async def cmd_marks(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Получаю оценки...')
     try:
-        marks = get_rate(command.args.split()[0])
-        await message.answer('<code>' + html.escape('\n'.join(marks)) + '</code>', parse_mode='HTML')
+        marks = get_rates(command.args.split()[0])
+        if len(marks):
+            await message.answer('<code>' + html.escape('\n'.join(marks)) + '</code>', parse_mode='HTML')
+        else:
+            await message.answer('Оценок нет')
     except Exception as ex:
         logging.error(ex)
         await message.answer('Ошибка :(', parse_mode='HTML')
