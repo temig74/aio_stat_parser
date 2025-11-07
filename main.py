@@ -2,9 +2,10 @@ import asyncio
 import html
 import logging
 import sys
+import io
 
 import requests
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandObject
 from aiogram.filters.command import Command
 
@@ -35,7 +36,19 @@ def command_info(message: types.Message):
 @dp.message(Command(commands=['start', 'help']))
 async def cmd_start(message: types.Message):
     logging.info(command_info(message))
-    await message.answer(f'Temig stat parser\nПример:\n{example}\nИмейте в виду, бот не учитывает вручную начисленные бонусы, у которых не проставлен номер уровня. Также, некорректно считать штурмовую последовательность.\n\nУзнать все оценки за игру:\n{example2}\n\nСкрытая статистика:\n{example3}', parse_mode='HTML')
+    await message.answer(f'''Temig stat parser
+Пример:
+{example}
+Имейте в виду, бот не учитывает вручную начисленные бонусы, у которых не проставлен номер уровня.
+Также, некорректно считать штурмовую последовательность.
+
+Узнать все оценки за игру:
+{example2}
+
+Скрытая статистика:
+{example3}
+
+Также, можете загрузить html файл с сохраненной страницей статистики, добавив в подпись номера уровней, по которым надо посчитать стату (аналочно команде stat)''', parse_mode='HTML')
 
 
 @dp.message(Command('stat'))
@@ -273,7 +286,46 @@ def parse_level_nums(levels_text: str) -> list[int]:
     return sorted(parsed_levels)
 
 
+@dp.message(F.document)
+async def cmd_hstat_file(message: types.Message):
+    MAX_FILE_SIZE_BYTES = 7 * 1024 * 1024
+    document = message.document
+    caption = message.caption
+
+    if not caption:
+        await message.reply("Подпись к файлу с номерами уровней не найдена")
+        return
+
+    try:
+        levels_list = parse_level_nums(caption)
+    except:
+        await message.answer('Ошибка списка уровней')
+        return
+
+    if document.mime_type != 'text/html' and not document.file_name.endswith(('.html', '.htm')):
+        await message.reply("Пожалуйста, загрузите действительный HTML файл.")
+        return
+
+    if document.file_size > MAX_FILE_SIZE_BYTES:
+        await message.reply('Слишком большой файл')
+        return
+
+    await message.reply("Получаю Ваш HTML файл, пожалуйста, подождите...")
+
+    try:
+        html_buffer = io.BytesIO()
+        file_info = await bot.get_file(document.file_id)
+        await bot.download_file(file_info.file_path, destination=html_buffer)
+        html_buffer.seek(0)
+        html_content_str = html_buffer.read().decode('utf-8')
+        result = parse_html_stat(html_content_str, levels_list)
+        await send_result(message.chat.id, result)
+    except:
+        await message.reply("Произошла ошибка")
+
+
 async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 
