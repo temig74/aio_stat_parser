@@ -315,6 +315,7 @@ async def cmd_hstat_file(message: types.Message):
     try:
         html_buffer = io.BytesIO()
         file_info = await bot.get_file(document.file_id)
+        logging.info(f'user {message.from_user.username} is loading stat file {document.file_name}')
         await bot.download_file(file_info.file_path, destination=html_buffer)
         html_buffer.seek(0)
         html_content_str = html_buffer.read().decode('utf-8')
