@@ -51,6 +51,9 @@ def parse_en_stat2(my_url, levels_list):
     if json['Game']['LevelsSequenceId'] == 3:
         return ['Ошибка: не применимо в штурмовой последовательности'], []
 
+    if not levels_list:
+        levels_list = [i for i in range(1, json['Game']['LevelNumber']+1)]
+
     def datetime_from_seconds(milliseconds_from_zero_year):
         # в движке все расчеты идут по секундам (по словам музыканта)
         # но все равно возьмем время с миллисекундами для более точных результатов
