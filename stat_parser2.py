@@ -7,7 +7,6 @@ import requests
 from bs4 import BeautifulSoup
 from emoji import replace_emoji
 from config_reader import config
-from datetime import datetime
 
 
 def format_timedelta(tdelta: timedelta):
@@ -45,9 +44,8 @@ def get_json(my_url):
     return json
 
 
-def parse_en_stat2(my_url, levels_list):
+def parse_en_stat2(json, levels_list):
     start_time = datetime.now()
-    json = get_json(my_url)
     if json['Game']['LevelsSequenceId'] == 3:
         return ['Ошибка: не применимо в штурмовой последовательности'], []
 
@@ -119,8 +117,7 @@ def parse_en_stat2(my_url, levels_list):
     return header, bonus_output_list, nobonus_output_list
 
 
-def generate_csv(my_url, with_bonuses: bool):
-    json = get_json(my_url)
+def generate_csv(json, with_bonuses: bool):
     stat_d = {}
     for level in json['StatItems']:
         for statitem in level:

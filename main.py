@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import html
 import logging
 import sys
@@ -73,7 +74,13 @@ async def cmd_stat(message: types.Message, command: CommandObject):
         return
 
     try:
-        result = parse_en_stat2(my_url, levels_list)
+        start_time = datetime.datetime.now()
+        json = await asyncio.get_running_loop().run_in_executor(None, get_json, my_url)
+        #get_json(my_url)
+
+        print(f'json загружен за {datetime.datetime.now()-start_time}')
+        result = parse_en_stat2(json, levels_list)
+        print(f'parse_en_stat2 отработала за {datetime.datetime.now() - start_time}')
         await send_result(message.chat.id, result)
     except Exception as ex:
         logging.error(ex)
@@ -90,7 +97,9 @@ async def cmd_textstat(message: types.Message, command: CommandObject):
         return
     my_url = input_args[0]
     levels_text = input_args[1:]
-    json = get_json(my_url)
+
+    #json = get_json(my_url)
+    json = await asyncio.get_running_loop().run_in_executor(None, get_json, my_url)
 
     level_count = json['Game']['LevelNumber']
     parsed_level_data = []
@@ -135,7 +144,7 @@ async def cmd_textstat(message: types.Message, command: CommandObject):
                     break
 
     try:
-        result = parse_en_stat2(my_url, levels_list)
+        result = parse_en_stat2(json, levels_list)
         await send_result(message.chat.id, result)
     except Exception as ex:
         logging.error(ex)
@@ -147,7 +156,12 @@ async def cmd_csv(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Генерирую файл, подождите...')
     try:
-        file_text = generate_csv(command.args.split()[0], True)
+        my_url = command.args.split()[0]
+
+        # json = get_json(my_url)
+        json = await asyncio.get_running_loop().run_in_executor(None, get_json, my_url)
+
+        file_text = generate_csv(json, True)
         buf_file = types.BufferedInputFile(bytes(file_text, 'utf-8-sig'), filename='with_bonuses.csv')
         await message.answer_document(buf_file)
         file_text = generate_csv(command.args.split()[0], False)
@@ -163,7 +177,10 @@ async def cmd_rates(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Получаю оценки...')
     try:
-        marks = get_rates(command.args.split()[0])
+
+        # marks = get_rates(command.args.split()[0])
+        marks = await asyncio.get_running_loop().run_in_executor(None, get_rates, command.args.split()[0])
+
         if len(marks):
             await message.answer('<code>' + html.escape('\n'.join(marks)) + '</code>', parse_mode='HTML')
         else:
