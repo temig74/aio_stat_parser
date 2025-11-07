@@ -7,6 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 from emoji import replace_emoji
 from config_reader import config
+import logging
 
 
 def format_timedelta(tdelta: timedelta):
@@ -21,6 +22,7 @@ def format_timedelta(tdelta: timedelta):
 
 
 def get_json(my_url):
+    start_time = datetime.now()
     url = urlparse(my_url)
     gid = parse_qs(url.query)['gid'][0]
 
@@ -41,6 +43,7 @@ def get_json(my_url):
             if i > 1:
                 for i in range(0, len(response['StatItems'])):
                     json['StatItems'][i].extend(response['StatItems'][i])
+    logging.info(f'json загружен за {datetime.now() - start_time}')
     return json
 
 
@@ -113,7 +116,7 @@ def parse_en_stat2(json, levels_list):
     sorted_nobonus_list = sorted(result_list, key=lambda x: (-x[3], x[1]))
     nobonus_output_list = ['Без бонусов:'] + [format_line(i, a, False) for i, a in enumerate(sorted_nobonus_list)]
 
-    print(f'parse_en_stat2 отработала за {datetime.now()-start_time}')
+    logging.info(f'parse_en_stat2 отработала за {datetime.now()-start_time}')
     return header, bonus_output_list, nobonus_output_list
 
 

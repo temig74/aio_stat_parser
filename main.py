@@ -1,5 +1,4 @@
 import asyncio
-import datetime
 import html
 import logging
 import sys
@@ -74,13 +73,10 @@ async def cmd_stat(message: types.Message, command: CommandObject):
         return
 
     try:
-        start_time = datetime.datetime.now()
         json = await asyncio.get_running_loop().run_in_executor(None, get_json, my_url)
         #get_json(my_url)
 
-        print(f'json загружен за {datetime.datetime.now()-start_time}')
         result = parse_en_stat2(json, levels_list)
-        print(f'parse_en_stat2 отработала за {datetime.datetime.now() - start_time}')
         await send_result(message.chat.id, result)
     except Exception as ex:
         logging.error(ex)
