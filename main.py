@@ -1,10 +1,10 @@
 import asyncio
+import aiohttp
 import html
 import logging
 import sys
 import io
 
-import requests
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandObject
 from aiogram.filters.command import Command
@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 bot = Bot(token=config.bot_token.get_secret_value())
 dp = Dispatcher()
+
 example = f'''<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
 <code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>
 <code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 -22 -35 -52 -68 -78 -79 -80</code> (уровни 1-103, за исключением 22 35 52 68 78 79 80)
@@ -61,10 +62,8 @@ async def cmd_stat(message: types.Message, command: CommandObject):
         await message.answer(f'Пример ввода:\n{example}', parse_mode='HTML')
         return
 
-    if len(input_args) == 2:
-        my_url, levels_text = input_args
-    else:
-        my_url, levels_text = input_args[0], ''
+    my_url = input_args[0]
+    levels_text = input_args[1] if len(input_args) > 1 else ''
 
     try:
         levels_list = parse_level_nums(levels_text)
@@ -73,10 +72,9 @@ async def cmd_stat(message: types.Message, command: CommandObject):
         return
 
     try:
-        json = await asyncio.get_running_loop().run_in_executor(None, get_json, my_url)
-        #get_json(my_url)
+        json_data = await get_json(my_url)
 
-        result = parse_en_stat2(json, levels_list)
+        result = parse_en_stat2(json_data, levels_list)
         await send_result(message.chat.id, result)
     except Exception as ex:
         logging.error(ex)
@@ -94,28 +92,34 @@ async def cmd_textstat(message: types.Message, command: CommandObject):
     my_url = input_args[0]
     levels_text = input_args[1:]
 
-    #json = get_json(my_url)
-    json = await asyncio.get_running_loop().run_in_executor(None, get_json, my_url)
+    try:
+        json_data = await get_json(my_url)
+    except Exception as e:
+        logging.error(f'Ошибка получения json {e}')
+        await message.answer('Ошибка получения json')
+        return
 
-    level_count = json['Game']['LevelNumber']
+    level_count = json_data['Game']['LevelNumber']
     parsed_level_data = []
 
-    if not json['Game']['HideLevelsNames']:  # названия уровней есть в json, если не стоит галка "скрыть названия уровней до конца игры"
-        for level in json['Levels']:
+    if not json_data['Game']['HideLevelsNames']:  # названия уровней есть в json, если не стоит галка "скрыть названия уровней до конца игры"
+        for level in json_data['Levels']:
             parsed_level_data.append((int(level['LevelNumber']), level['LevelName'].lower()))
     else:
         url_obj = urlparse(my_url)
         gid = parse_qs(url_obj.query)['gid'][0]
         stat_url = f'https://{url_obj.hostname}/GameStat.aspx?gid={gid}&sortfield=SpentSeconds&lang=ru'
-        rs = requests.get(stat_url, headers={"User-Agent": config.user_agent})
-        soup = BeautifulSoup(rs.text, 'lxml')
-        parse_levels = soup.find('tr', class_='levelsRow').find_all('td')
-        for td in parse_levels[1:-3]:
-            for span in td.find_all('span', class_='dismissed'):
-                span.decompose()
-            text = td.get_text(strip=True).lower()
-            level_number, level_name = text.split(':', maxsplit=2)
-            parsed_level_data.append((int(level_number), level_name))
+
+        async with aiohttp.get(stat_url, headers={"User-Agent": config.user_agent}) as rs:
+            rs.raise_for_status()
+            soup = BeautifulSoup(await rs.text(), 'lxml')
+            parse_levels = soup.find('tr', class_='levelsRow').find_all('td')
+            for td in parse_levels[1:-3]:
+                for span in td.find_all('span', class_='dismissed'):
+                    span.decompose()
+                text = td.get_text(strip=True).lower()
+                level_number, level_name = text.split(':', maxsplit=1)
+                parsed_level_data.append((int(level_number), level_name))
 
     levels_list = []
     if levels_text[0][0] == '-':  # Если мы минусуем какие-то уровни из общей статы
@@ -140,7 +144,7 @@ async def cmd_textstat(message: types.Message, command: CommandObject):
                     break
 
     try:
-        result = parse_en_stat2(json, levels_list)
+        result = parse_en_stat2(json_data, levels_list)
         await send_result(message.chat.id, result)
     except Exception as ex:
         logging.error(ex)
@@ -153,14 +157,13 @@ async def cmd_csv(message: types.Message, command: CommandObject):
     await message.answer('Генерирую файл, подождите...')
     try:
         my_url = command.args.split()[0]
+        json_data = await get_json(my_url)
 
-        # json = get_json(my_url)
-        json = await asyncio.get_running_loop().run_in_executor(None, get_json, my_url)
-
-        file_text = generate_csv(json, True)
+        file_text = generate_csv(json_data, True)
         buf_file = types.BufferedInputFile(bytes(file_text, 'utf-8-sig'), filename='with_bonuses.csv')
         await message.answer_document(buf_file)
-        file_text = generate_csv(command.args.split()[0], False)
+
+        file_text = generate_csv(json_data, False)
         buf_file = types.BufferedInputFile(bytes(file_text, 'utf-8-sig'), filename='without_bonuses.csv')
         await message.answer_document(buf_file)
     except Exception as ex:
@@ -174,8 +177,7 @@ async def cmd_rates(message: types.Message, command: CommandObject):
     await message.answer('Получаю оценки...')
     try:
 
-        # marks = get_rates(command.args.split()[0])
-        marks = await asyncio.get_running_loop().run_in_executor(None, get_rates, command.args.split()[0])
+        marks = await get_rates(command.args.split()[0])
 
         if len(marks):
             await message.answer('<code>' + html.escape('\n'.join(marks)) + '</code>', parse_mode='HTML')
@@ -210,65 +212,81 @@ async def cmd_hstat(message: types.Message, command: CommandObject):
         await message.answer('Некорректный id игры')
         return
 
-    my_session = requests.Session()
-    auth_url = f'https://{my_domain}/Login.aspx'
-    data = {'Login': config.en_username, 'Password': config.en_password.get_secret_value()}
-    try:
-        response = my_session.post(auth_url, data=data, headers={'User-agent': config.user_agent})
-        if response.status_code != 200:
+    async with aiohttp.ClientSession(headers={"User-Agent": config.user_agent}) as my_session:
+        auth_url = f'https://{my_domain}/Login.aspx'
+        data = {'Login': config.en_username, 'Password': config.en_password.get_secret_value()}
+        try:
+            async with my_session.post(auth_url, data=data) as rs:
+                rs.raise_for_status()
+        except Exception as e:
+            logging.error(f'Ошибка авторизации {e}')
             await message.answer('Ошибка авторизации')
             return
-    except Exception as e:
-        await message.answer(f'Ошибка:{e}')
 
-    # Проверка, что id находится в списке авторов игры
-    rs = my_session.get(f'https://{my_domain}/GameDetails.aspx?gid={my_game_id}',  headers={'User-agent': config.user_agent})
-    soup = BeautifulSoup(rs.text, 'lxml')
-    authors_links = soup.select('a[id^="GameDetail_AuthorsRepeater"]')
-    authors_list = []
-    for a in authors_links:
-        href = a.get('href', '')
-        if href:
-            url_obj = urlparse(href)
-            user_id = parse_qs(url_obj.query)['uid'][0]
-            if user_id:
-                authors_list.append(user_id)
-    if author_id not in authors_list:
-        await message.answer('Ваш id не находится в списке авторов игры')
-        return
-    if config.bot_en_id not in authors_list:
-        await message.answer(f'enstatbot (https://world.en.cx/UserDetails.aspx?uid={config.bot_en_id}) не находится в списке авторов игры')
-        return
+        # Проверка, что id находится в списке авторов игры
+        try:
+            async with my_session.get(f'https://{my_domain}/GameDetails.aspx?gid={my_game_id}') as rs:
+                rs.raise_for_status()
+                soup = BeautifulSoup(await rs.text(), 'lxml')
+                authors_links = soup.select('a[id^="GameDetail_AuthorsRepeater"]')
+                authors_list = []
+                for a in authors_links:
+                    href = a.get('href', '')
+                    if href:
+                        url_obj = urlparse(href)
+                        user_id = parse_qs(url_obj.query)['uid'][0]
+                        if user_id:
+                            authors_list.append(user_id)
+                if author_id not in authors_list:
+                    await message.answer('Ваш id не находится в списке авторов игры')
+                    return
+                if config.bot_en_id not in authors_list:
+                    await message.answer(f'enstatbot (https://world.en.cx/UserDetails.aspx?uid={config.bot_en_id}) не находится в списке авторов игры')
+                    return
+        except Exception as e:
+            logging.error(f'Ошибка проверки списка авторов игры {e}')
+            await message.answer('Ошибка проверки списка авторов игры')
+            return
 
-    # Проверка, что телеграм в профиле соответствует тому, кто обращается
-    rs = my_session.get(f'https://{my_domain}/UserDetails.aspx?uid={author_id}', headers={'User-agent': config.user_agent})
-    soup = BeautifulSoup(rs.text, 'lxml')
-    tg_span_tag = soup.find('span', id='EnTabContainer1_content_ctl00_panelLineContacts_contactsBlock_JabberValue')
-    if tg_span_tag:
-        tg_contact = tg_span_tag.get_text()
-    else:
-        await message.answer('У данного id не указан Telegram')
-        return
-    if tg_contact.lower() != message.from_user.username.lower():
-        await message.answer('Ваше имя в tg не соответствует tg указанного автора')
-        return
 
-    try:
-        levels_list = parse_level_nums(levels_text)
-    except:
-        await message.answer(f'Ошибка списка уровней')
-        return
+        # Проверка, что телеграм в профиле соответствует тому, кто обращается
+        try:
+            async with my_session.get(f'https://{my_domain}/UserDetails.aspx?uid={author_id}') as rs:
+                rs.raise_for_status()
+                soup = BeautifulSoup(await rs.text(), 'lxml')
+                tg_span_tag = soup.find('span', id='EnTabContainer1_content_ctl00_panelLineContacts_contactsBlock_JabberValue')
+                if tg_span_tag:
+                    tg_contact = tg_span_tag.get_text()
+                else:
+                    await message.answer('У данного id не указан Telegram')
+                    return
+                if tg_contact.lower() != message.from_user.username.lower():
+                    await message.answer('Ваше имя в tg не соответствует tg указанного автора')
+                    return
+        except Exception as e:
+            logging.error(f'Ошибка проверки телеграма в en-профиле {e}')
+            await message.answer('Ошибка проверки телеграма в en-профиле')
+            return
 
-    info_str = f'Пользователь tg @{message.chat.username} с en id https://world.en.cx/UserDetails.aspx?uid={author_id} считает закрытую статистику игры {my_url}'
-    logging.info(info_str)
-    await bot.send_message(config.admin_chat_id, info_str)
-    try:
-        rs = my_session.get(f'https://{my_domain}/GameStat.aspx?gid={my_game_id}&sortfield=SpentSeconds&lang=ru', headers={'User-agent': config.user_agent})
-        html_source = rs.text
-        result = parse_html_stat(html_source, levels_list)
-        await send_result(message.chat.id, result)
-    except:
-        await message.answer('Ошибка парсера статистики')
+        try:
+            levels_list = parse_level_nums(levels_text)
+        except Exception as e:
+            logging.error(f'Ошибка списка уровней {e}')
+            await message.answer(f'Ошибка списка уровней')
+            return
+
+        info_str = f'Пользователь tg @{message.chat.username} с en id https://world.en.cx/UserDetails.aspx?uid={author_id} считает закрытую статистику игры {my_url}'
+        logging.info(info_str)
+        await bot.send_message(config.admin_chat_id, info_str)
+        #try:
+        async with my_session.get(f'https://{my_domain}/GameStat.aspx?gid={my_game_id}&sortfield=SpentSeconds&lang=ru') as rs:
+            rs.raise_for_status()
+            html_source = await rs.text()
+            result = parse_html_stat(html_source, levels_list)
+            await send_result(message.chat.id, result)
+        #except Exception as e:
+        #    logging.error(f'Ошибка парсера статистики {e}')
+        #    await message.answer('Ошибка парсера статистики')
 
 
 async def send_result(chat_id, result):

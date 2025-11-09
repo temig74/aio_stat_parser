@@ -3,11 +3,11 @@ from datetime import datetime, timedelta
 from itertools import groupby
 from time import sleep
 from urllib.parse import parse_qs, urlparse
-import requests
 from bs4 import BeautifulSoup
 from emoji import replace_emoji
 from config_reader import config
 import logging
+import aiohttp
 
 
 def format_timedelta(tdelta: timedelta):
@@ -21,30 +21,34 @@ def format_timedelta(tdelta: timedelta):
     return f"{sign}{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}:{milliseconds:03d}"
 
 
-def get_json(my_url):
+async def get_json(my_url):
     start_time = datetime.now()
     url = urlparse(my_url)
     gid = parse_qs(url.query)['gid'][0]
 
-    json = None
+    json_data = None
     MAX_PAGES = 10
-    with requests.Session() as session:
+    headers = {"User-Agent": config.user_agent}
+    async with aiohttp.ClientSession(headers=headers) as session:
         for i in range(1, MAX_PAGES):
             api_url = f'https://{url.hostname}/gamestatistics/full/{gid}?json=1&page={i}'
-            response = session.get(api_url, headers={"User-Agent": config.user_agent}).json()
-            if i == 1:
-                json = response
+            async with session.get(api_url) as response:
+                if response.status != 200:
+                    logging.error(f"Ошибка при загрузке страницы {api_url}: Статус {response.status}")
+                    break
+                response_data = await response.json()
 
-            # do not proceed with next page if no stat items for this page
-            if not response['StatItems'][0]:
-                break
+                if i == 1:
+                    json_data = response_data
+                if not response_data.get('StatItems') or not response_data['StatItems'][0]:
+                    break
 
-            # merge StatItems into first page
-            if i > 1:
-                for i in range(0, len(response['StatItems'])):
-                    json['StatItems'][i].extend(response['StatItems'][i])
+                if i > 1:
+                    for j in range(len(response_data['StatItems'])):
+                        json_data['StatItems'][j].extend(response_data['StatItems'][j])
+
     logging.info(f'json загружен за {datetime.now() - start_time}')
-    return json
+    return json_data
 
 
 def parse_en_stat2(json, levels_list):
@@ -143,19 +147,26 @@ def generate_csv(json, with_bonuses: bool):
     return file_text
 
 
-def get_rates(my_url: str):
+async def get_rates(my_url: str):
     gid = parse_qs(urlparse(my_url).query)['gid'][0]
-    with requests.Session() as session:
-        all_teams = session.get(f'https://world.en.cx/ALoader/GameLoader.aspx?gid={gid}&item=3', headers={'User-Agent': config.user_agent})
-        html = BeautifulSoup(all_teams.text, 'lxml')
+    async with aiohttp.ClientSession(headers={'User-Agent': config.user_agent}) as session:
+        async with session.get(f'https://world.en.cx/ALoader/GameLoader.aspx?gid={gid}&item=3') as rs:
+            rs.raise_for_status()
+            all_teams = await rs.text()
+
+        html = BeautifulSoup(all_teams, 'lxml')
         rates = []
         for team in html.find_all(id='lnkPlayerInfo'):
             team_name = team.get_text(strip=True)
             href = urlparse(team['href'])
             tid = parse_qs(href.query)['tid'][0]
             rates_url = f'https://world.en.cx/ALoader/FormulaDetails.aspx?gid={gid}&tid={tid}&mode=0'
-            team_players = session.get(rates_url, headers={'User-Agent': config.user_agent})
-            rates_doc = BeautifulSoup(team_players.text, 'lxml')
+
+            async with session.get(rates_url) as rs:
+                rs.raise_for_status()
+                team_players = await rs.text()
+
+            rates_doc = BeautifulSoup(team_players, 'lxml')
             for p in rates_doc.find_all(class_='toWinnerItem'):
                 player_node = p.find('a', href=re.compile(r'uid=\d+'))
                 player_rate = p.find('td', class_='pink').get_text(strip=True)
