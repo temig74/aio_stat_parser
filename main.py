@@ -278,15 +278,15 @@ async def cmd_hstat(message: types.Message, command: CommandObject):
         info_str = f'Пользователь tg @{message.chat.username} с en id https://world.en.cx/UserDetails.aspx?uid={author_id} считает закрытую статистику игры {my_url}'
         logging.info(info_str)
         await bot.send_message(config.admin_chat_id, info_str)
-        #try:
-        async with my_session.get(f'https://{my_domain}/GameStat.aspx?gid={my_game_id}&sortfield=SpentSeconds&lang=ru') as rs:
-            rs.raise_for_status()
-            html_source = await rs.text()
-            result = parse_html_stat(html_source, levels_list)
-            await send_result(message.chat.id, result)
-        #except Exception as e:
-        #    logging.error(f'Ошибка парсера статистики {e}')
-        #    await message.answer('Ошибка парсера статистики')
+        try:
+            async with my_session.get(f'https://{my_domain}/GameStat.aspx?gid={my_game_id}&sortfield=SpentSeconds&lang=ru') as rs:
+                rs.raise_for_status()
+                html_source = await rs.text()
+                result = parse_html_stat(html_source, levels_list)
+                await send_result(message.chat.id, result)
+        except Exception as e:
+            logging.error(f'Ошибка парсера статистики {e}')
+            await message.answer('Ошибка парсера статистики')
 
 
 async def send_result(chat_id, result):
