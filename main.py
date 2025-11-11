@@ -56,7 +56,8 @@ async def cmd_start(message: types.Message):
 async def cmd_stat(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Считаю статистику, подождите...')
-    input_args = command.args.split(maxsplit=1)
+
+    input_args = command.args.split(maxsplit=1) if command.args else []
 
     if not input_args:
         await message.answer(f'Пример ввода:\n{example}', parse_mode='HTML')
@@ -85,7 +86,7 @@ async def cmd_stat(message: types.Message, command: CommandObject):
 async def cmd_textstat(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Считаю статистику, подождите...')
-    input_args = command.args.split()
+    input_args = command.args.split() if command.args else []
     if len(input_args) < 2:
         await message.answer(f'Пример ввода:\n{example}', parse_mode='HTML')
         return
@@ -176,9 +177,7 @@ async def cmd_rates(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
     await message.answer('Получаю оценки...')
     try:
-
         marks = await get_rates(command.args.split()[0])
-
         if len(marks):
             await message.answer('<code>' + html.escape('\n'.join(marks)) + '</code>', parse_mode='HTML')
         else:
