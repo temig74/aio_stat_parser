@@ -215,9 +215,7 @@ def parse_html_stat(html_source, levels_list):
     date_start = datetime.strptime(re.search(r"(?<=sliderStartTime = ').*(?=\';)", str(html_source))[0], '%d.%m.%Y %H:%M:%S.%f')
     soup = BeautifulSoup(html_source, 'lxml')
 
-    parse_data = soup.find('table', id='GameStatObject_DataTable')
-    if not parse_data:
-        parse_data = soup.find('table', id='GameStatObject2_DataTable')
+    parse_data = soup.find(lambda tag: tag.name == 'table' and (tag.get('id') in ['GameStatObject_DataTable', 'GameStatObject2_DataTable', 'GameStatObject3_DataTable', 'GameStatObject4_DataTable']))
     stat_list = []
     for tr_set in parse_data.find_all('tr')[1:-1]:
         cells = tr_set.find_all('div', class_='dataCell')
