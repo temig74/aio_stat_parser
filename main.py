@@ -111,16 +111,17 @@ async def cmd_textstat(message: types.Message, command: CommandObject):
         gid = parse_qs(url_obj.query)['gid'][0]
         stat_url = f'https://{url_obj.hostname}/GameStat.aspx?gid={gid}&sortfield=SpentSeconds&lang=ru'
 
-        async with aiohttp.get(stat_url, headers={"User-Agent": config.user_agent}) as rs:
-            rs.raise_for_status()
-            soup = BeautifulSoup(await rs.text(), 'lxml')
-            parse_levels = soup.find('tr', class_='levelsRow').find_all('td')
-            for td in parse_levels[1:-3]:
-                for span in td.find_all('span', class_='dismissed'):
-                    span.decompose()
-                text = td.get_text(strip=True).lower()
-                level_number, level_name = text.split(':', maxsplit=1)
-                parsed_level_data.append((int(level_number), level_name))
+        async with aiohttp.ClientSession() as session:
+            async with session.get(stat_url, headers={"User-Agent": config.user_agent}) as rs:
+                rs.raise_for_status()
+                soup = BeautifulSoup(await rs.text(), 'lxml')
+                parse_levels = soup.find('tr', class_='levelsRow').find_all('td')
+                for td in parse_levels[1:-3]:
+                    for span in td.find_all('span', class_='dismissed'):
+                        span.decompose()
+                    text = td.get_text(strip=True).lower()
+                    level_number, level_name = text.split(':', maxsplit=1)
+                    parsed_level_data.append((int(level_number), level_name))
 
     levels_list = []
     if levels_text[0][0] == '-':  # Если мы минусуем какие-то уровни из общей статы
@@ -246,7 +247,6 @@ async def cmd_hstat(message: types.Message, command: CommandObject):
             logging.error(f'Ошибка проверки списка авторов игры {e}')
             await message.answer('Ошибка проверки списка авторов игры')
             return
-
 
         # Проверка, что телеграм в профиле соответствует тому, кто обращается
         try:
