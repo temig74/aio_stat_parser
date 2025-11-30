@@ -20,8 +20,8 @@ dp = Dispatcher()
 
 example = f'''<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
 <code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>
-<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 -22 -35 -52 -68 -78 -79 -80</code> (уровни 1-103, за исключением 22 35 52 68 78 79 80 (бонусы на них не сохраняются))
-<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 !96</code> (уровни 1-103, со снятием уровня 96 (бонусы на нем сохраняются, как при снятии в движке). Не используйте, если уровень уже снят в движке.)
+<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 -22 -35 -52 -68 -78 -79 -80</code> (уровни 1-103, за исключением 22 35 52 68 78 79 80 (бонусы и штрафы на них не сохраняются))
+<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 !96</code> (уровни 1-103, со снятием уровня 96 (бонусы и штрафы на нем сохраняются, как при снятии в движке). Не используйте, если уровень уже снят в движке
 <code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 доезд QRV</code> (только доезды и QRV)
 <code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 -доезд -QRV</code> (исключить доезды и QRV)
 <code>/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
