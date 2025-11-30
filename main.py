@@ -20,7 +20,8 @@ dp = Dispatcher()
 
 example = f'''<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
 <code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>
-<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 -22 -35 -52 -68 -78 -79 -80</code> (уровни 1-103, за исключением 22 35 52 68 78 79 80)
+<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 -22 -35 -52 -68 -78 -79 -80</code> (уровни 1-103, за исключением 22 35 52 68 78 79 80 (бонусы на них не сохраняются))
+<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 1-103 !96</code> (уровни 1-103, со снятием уровня 96 (бонусы на нем сохраняются, как при снятии в движке). Не используйте, если уровень уже снят в движке.)
 <code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 доезд QRV</code> (только доезды и QRV)
 <code>/textstat https://dozorekb.en.cx/GameStat.aspx?gid=76109 -доезд -QRV</code> (исключить доезды и QRV)
 <code>/csv https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
@@ -67,7 +68,7 @@ async def cmd_stat(message: types.Message, command: CommandObject):
     levels_text = input_args[1] if len(input_args) > 1 else ''
 
     try:
-        levels_list = parse_level_nums(levels_text)
+        levels_list, dismissed_levels_list = parse_level_nums(levels_text)
     except:
         await message.answer('Ошибка списка уровней')
         return
@@ -75,7 +76,7 @@ async def cmd_stat(message: types.Message, command: CommandObject):
     try:
         json_data = await get_json(my_url)
 
-        result = parse_en_stat2(json_data, levels_list)
+        result = parse_en_stat2(json_data, levels_list, dismissed_levels_list)
         await send_result(message.chat.id, result)
     except Exception as ex:
         logging.error(ex)
@@ -268,7 +269,7 @@ async def cmd_hstat(message: types.Message, command: CommandObject):
             return
 
         try:
-            levels_list = parse_level_nums(levels_text)
+            levels_list, dismissed_levels_list = parse_level_nums(levels_text)
         except Exception as e:
             logging.error(f'Ошибка списка уровней {e}')
             await message.answer(f'Ошибка списка уровней')
@@ -281,7 +282,7 @@ async def cmd_hstat(message: types.Message, command: CommandObject):
             async with my_session.get(f'https://{my_domain}/GameStat.aspx?gid={my_game_id}&sortfield=SpentSeconds&lang=ru') as rs:
                 rs.raise_for_status()
                 html_source = await rs.text()
-                result = parse_html_stat(html_source, levels_list)
+                result = parse_html_stat(html_source, levels_list, dismissed_levels_list)
                 await send_result(message.chat.id, result)
         except Exception as e:
             logging.error(f'Ошибка парсера статистики {e}')
@@ -300,10 +301,13 @@ async def send_result(chat_id, result):
 
 
 # Парсит строку с уровнями (например, "1 3-5 -2") в отсортированный список уникальных int.
-def parse_level_nums(levels_text: str) -> list[int]:
+def parse_level_nums(levels_text: str) -> tuple[list[int], list[int]]:
     parsed_levels = []
+    dismissed_levels = []
     for elem in levels_text.split():
-        if elem.startswith('-'):
+        if elem.startswith('!'):
+            dismissed_levels.append(int(elem[1:]))
+        elif elem.startswith('-'):
             parsed_levels.remove(int(elem[1:]))
         elif '-' in elem:
             start_str, end_str = elem.split('-')
@@ -313,7 +317,7 @@ def parse_level_nums(levels_text: str) -> list[int]:
                 parsed_levels.append(i)
         else:
             parsed_levels.append(int(elem))
-    return sorted(parsed_levels)
+    return sorted(parsed_levels), sorted(dismissed_levels)
 
 
 @dp.message(F.document)
@@ -327,7 +331,7 @@ async def cmd_hstat_file(message: types.Message):
         return
 
     try:
-        levels_list = parse_level_nums(caption)
+        levels_list, dismissed_levels_list = parse_level_nums(caption)
     except:
         await message.answer('Ошибка списка уровней')
         return
@@ -349,7 +353,7 @@ async def cmd_hstat_file(message: types.Message):
         await bot.download_file(file_info.file_path, destination=html_buffer)
         html_buffer.seek(0)
         html_content_str = html_buffer.read().decode('utf-8')
-        result = parse_html_stat(html_content_str, levels_list)
+        result = parse_html_stat(html_content_str, levels_list, dismissed_levels_list)
         await send_result(message.chat.id, result)
     except:
         await message.reply("Произошла ошибка")

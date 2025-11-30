@@ -51,7 +51,7 @@ async def get_json(my_url):
     return json_data
 
 
-def parse_en_stat2(json, levels_list):
+def parse_en_stat2(json, levels_list, dismissed_levels_list=tuple()):
     start_time = datetime.now()
     if json['Game']['LevelsSequenceId'] == 3:
         return ['Ошибка: не применимо в штурмовой последовательности'], []
@@ -98,7 +98,7 @@ def parse_en_stat2(json, levels_list):
 
     result_list = [[a, result_dict[a][0], result_dict[a][2], result_dict[a][1]] for a in result_dict]
     ##################'''
-    result_list = get_final_results_from_stat(stat_list, levels_list, date_start)
+    result_list = get_final_results_from_stat(stat_list, levels_list, date_start, dismissed_levels_list)
 
     # посчитаем максимальную ширину столбцов "место" и "команда" для выравнивания
     team_width = max(len(a[0]) for a in result_list)
@@ -211,7 +211,7 @@ def parse_bonus_time(bonus_text):
     return total_sec * k
 
 
-def parse_html_stat(html_source, levels_list):
+def parse_html_stat(html_source, levels_list, dismissed_levels_list=tuple()):
     date_start = datetime.strptime(re.search(r"(?<=sliderStartTime = ').*(?=\';)", str(html_source))[0], '%d.%m.%Y %H:%M:%S.%f')
     soup = BeautifulSoup(html_source, 'lxml')
 
@@ -235,7 +235,7 @@ def parse_html_stat(html_source, levels_list):
                 'level_order': level_order
             })
 
-    final_results = get_final_results_from_stat(stat_list, levels_list, date_start)
+    final_results = get_final_results_from_stat(stat_list, levels_list, date_start, dismissed_levels_list)
 
     maxlen = 0
     if final_results:
@@ -262,7 +262,7 @@ def parse_html_stat(html_source, levels_list):
     return bonus_output_list, nobonus_output_list
 
 
-def get_final_results_from_stat(stat_list, levels_list, date_start):
+def get_final_results_from_stat(stat_list, levels_list, date_start, dismissed_levels_list=tuple()):
     team_level_order_lookup = {}
     result_dict = {}
     for entry in stat_list:
@@ -280,7 +280,7 @@ def get_final_results_from_stat(stat_list, levels_list, date_start):
         if level_num not in levels_list:
             continue
 
-        level_duration = None
+        level_duration: timedelta | None = None
         if level_order == 1:
             level_duration = up_datetime - date_start
         else:
@@ -289,7 +289,12 @@ def get_final_results_from_stat(stat_list, levels_list, date_start):
                 level_duration = up_datetime - prev_up_datetime
 
         if level_duration is not None:
+            # Если номер уровня в снятых, то "начисляем" бонус в размере длительности уровня (но сохраняя бонусы)
+            if level_num in dismissed_levels_list:
+                bonus_sec_total -= level_duration.total_seconds()
+
             calculated_level_durations.append({'team': team, 'duration': level_duration, 'bonus_sec_total': bonus_sec_total})
+
     for entry in calculated_level_durations:
         team = entry['team']
         duration = entry['duration']
