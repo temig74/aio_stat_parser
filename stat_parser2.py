@@ -173,7 +173,7 @@ async def get_rates(my_url: str):
                 player_name = player_node.get_text(strip=True)
                 player_weight = p.find('td', class_='yellow_lihgt').get_text(strip=True)
                 rates.append((int(player_rate), team_name, player_name, float(player_weight)))
-            sleep(0.2)
+            sleep(1.5)
         if not len(rates):
             return []
 
