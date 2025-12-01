@@ -44,9 +44,6 @@ async def cmd_start(message: types.Message):
 Имейте в виду, бот не учитывает вручную начисленные бонусы, у которых не проставлен номер уровня.
 Также, некорректно считать штурмовую последовательность.
 
-Узнать все оценки за игру:
-{example2}
-
 Скрытая статистика:
 {example3}
 
@@ -173,7 +170,7 @@ async def cmd_csv(message: types.Message, command: CommandObject):
         logging.error(ex)
         await message.answer(f'Ошибка, возможно неверный формат ввода или некорректная статистика.\nПример ввода:\n{example}', parse_mode='HTML')
 
-
+'''
 @dp.message(Command('rates'))
 async def cmd_rates(message: types.Message, command: CommandObject):
     logging.info(command_info(message))
@@ -187,7 +184,7 @@ async def cmd_rates(message: types.Message, command: CommandObject):
     except Exception as ex:
         logging.error(ex)
         await message.answer('Ошибка :(', parse_mode='HTML')
-
+'''
 
 @dp.message(Command('chat_id'))
 async def cmd_chat_id(message: types.Message, command: CommandObject):
