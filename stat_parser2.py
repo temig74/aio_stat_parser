@@ -150,7 +150,7 @@ def generate_csv(json, with_bonuses: bool):
 async def get_rates(my_url: str):
     gid = parse_qs(urlparse(my_url).query)['gid'][0]
     async with aiohttp.ClientSession(headers={'User-Agent': config.user_agent}) as session:
-        async with session.get(f'https://world.en.cx/ALoader/GameLoader.aspx?gid={gid}&item=3') as rs:
+        async with session.get(f'https://world.encounter.cx/ALoader/GameLoader.aspx?gid={gid}&item=3') as rs:
             rs.raise_for_status()
             all_teams = await rs.text()
 
@@ -160,7 +160,7 @@ async def get_rates(my_url: str):
             team_name = team.get_text(strip=True)
             href = urlparse(team['href'])
             tid = parse_qs(href.query)['tid'][0]
-            rates_url = f'https://world.en.cx/ALoader/FormulaDetails.aspx?gid={gid}&tid={tid}&mode=0'
+            rates_url = f'https://world.encounter.cx/ALoader/FormulaDetails.aspx?gid={gid}&tid={tid}&mode=0'
 
             async with session.get(rates_url) as rs:
                 rs.raise_for_status()

@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 bot = Bot(token=config.bot_token.get_secret_value())
 dp = Dispatcher()
+RATES_LOCK = asyncio.Lock()
 
 example = f'''<code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109</code>
 <code>/stat https://dozorekb.en.cx/GameStat.aspx?gid=76109 8 15 19 25 86 89-95 99</code>
@@ -176,17 +177,24 @@ async def cmd_csv(message: types.Message, command: CommandObject):
 
 @dp.message(Command('rates'))
 async def cmd_rates(message: types.Message, command: CommandObject):
-    logging.info(command_info(message))
-    await message.answer('Получаю оценки...')
-    try:
-        marks = await get_rates(command.args.split()[0])
-        if len(marks):
-            await message.answer('<code>' + html.escape('\n'.join(marks)) + '</code>', parse_mode='HTML')
-        else:
-            await message.answer('Оценок нет')
-    except Exception as ex:
-        logging.error(ex)
-        await message.answer('Ошибка :(', parse_mode='HTML')
+    if RATES_LOCK.locked():
+        await message.answer('Повторите Ваш запрос позже')
+        return
+    async with RATES_LOCK:
+        logging.info(command_info(message))
+        try:
+            if command.args:
+                await message.answer('Получаю оценки...')
+                marks = await get_rates(command.args.split()[0])
+                if len(marks):
+                    await message.answer('<code>' + html.escape('\n'.join(marks)) + '</code>', parse_mode='HTML')
+                else:
+                    await message.answer('Оценок нет')
+            else:
+                await message.answer(f'Пример: {example2}', parse_mode='HTML')
+        except Exception as ex:
+            logging.error(ex)
+            await message.answer('Ошибка :(', parse_mode='HTML')
 
 
 @dp.message(Command('chat_id'))
