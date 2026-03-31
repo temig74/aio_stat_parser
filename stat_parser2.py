@@ -211,29 +211,30 @@ def parse_bonus_time(bonus_text):
     return total_sec * k
 
 
-def parse_html_stat(html_source, levels_list, dismissed_levels_list=tuple()):
-    date_start = datetime.strptime(re.search(r"(?<=sliderStartTime = ').*(?=\';)", str(html_source))[0], '%d.%m.%Y %H:%M:%S.%f')
-    soup = BeautifulSoup(html_source, 'lxml')
+def parse_html_stat(pages, levels_list, dismissed_levels_list=tuple()):
+    date_start = datetime.strptime(re.search(r"(?<=sliderStartTime = ').*(?=\';)", str(pages[0]))[0], '%d.%m.%Y %H:%M:%S.%f')
 
-    parse_data = soup.find(lambda tag: tag.name == 'table' and (tag.get('id') in ['GameStatObject_DataTable', 'GameStatObject2_DataTable', 'GameStatObject3_DataTable', 'GameStatObject4_DataTable']))
     stat_list = []
-    for tr_set in parse_data.find_all('tr')[1:-1]:
-        cells = tr_set.find_all('div', class_='dataCell')
-        for level_num, elem in enumerate(cells, 1):
-            team = elem.find('a').text
-            up_datetime_match = UP_DATETIME_PATTERN.search(str(elem))
-            up_datetime = datetime.strptime(f"{up_datetime_match.group(1)} {up_datetime_match.group(2)}", '%d.%m.%Y %H:%M:%S.%f')
-            level_order_tag = elem.find('div', class_='n')
-            level_order = int(level_order_tag.text) if level_order_tag else level_num
-            bonus_sec_total = parse_bonus_time(elem)
+    for html_page in pages:
+        soup = BeautifulSoup(html_page, 'lxml')
+        parse_data = soup.find(lambda tag: tag.name == 'table' and (tag.get('id') in ['GameStatObject_DataTable', 'GameStatObject2_DataTable', 'GameStatObject3_DataTable', 'GameStatObject4_DataTable']))
+        for tr_set in parse_data.find_all('tr')[1:-1]:
+            cells = tr_set.find_all('div', class_='dataCell')
+            for level_num, elem in enumerate(cells, 1):
+                team = elem.find('a').text
+                up_datetime_match = UP_DATETIME_PATTERN.search(str(elem))
+                up_datetime = datetime.strptime(f"{up_datetime_match.group(1)} {up_datetime_match.group(2)}", '%d.%m.%Y %H:%M:%S.%f')
+                level_order_tag = elem.find('div', class_='n')
+                level_order = int(level_order_tag.text) if level_order_tag else level_num
+                bonus_sec_total = parse_bonus_time(elem)
 
-            stat_list.append({
-                'team': team,
-                'level_num': level_num,
-                'up_datetime': up_datetime,
-                'bonus_sec_total': bonus_sec_total,
-                'level_order': level_order
-            })
+                stat_list.append({
+                    'team': team,
+                    'level_num': level_num,
+                    'up_datetime': up_datetime,
+                    'bonus_sec_total': bonus_sec_total,
+                    'level_order': level_order
+                })
 
     final_results = get_final_results_from_stat(stat_list, levels_list, date_start, dismissed_levels_list)
 

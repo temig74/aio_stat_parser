@@ -232,49 +232,51 @@ async def cmd_hstat(message: types.Message, command: CommandObject):
             await message.answer('Ошибка авторизации')
             return
 
-        # Проверка, что id находится в списке авторов игры
-        try:
-            async with my_session.get(f'https://{my_domain}/GameDetails.aspx?gid={my_game_id}') as rs:
-                rs.raise_for_status()
-                soup = BeautifulSoup(await rs.text(), 'lxml')
-                authors_links = soup.select('a[id^="GameDetail_AuthorsRepeater"]')
-                authors_list = []
-                for a in authors_links:
-                    href = a.get('href', '')
-                    if href:
-                        url_obj = urlparse(href)
-                        user_id = parse_qs(url_obj.query)['uid'][0]
-                        if user_id:
-                            authors_list.append(user_id)
-                if author_id not in authors_list:
-                    await message.answer('Ваш id не находится в списке авторов игры')
-                    return
-                if config.bot_en_id not in authors_list:
-                    await message.answer(f'enstatbot (https://world.en.cx/UserDetails.aspx?uid={config.bot_en_id}) не находится в списке авторов игры')
-                    return
-        except Exception as e:
-            logging.error(f'Ошибка проверки списка авторов игры {e}')
-            await message.answer('Ошибка проверки списка авторов игры')
-            return
+        if message.from_user.username not in config.admins:
 
-        # Проверка, что телеграм в профиле соответствует тому, кто обращается
-        try:
-            async with my_session.get(f'https://{my_domain}/UserDetails.aspx?uid={author_id}') as rs:
-                rs.raise_for_status()
-                soup = BeautifulSoup(await rs.text(), 'lxml')
-                tg_span_tag = soup.find('span', id='EnTabContainer1_content_ctl00_panelLineContacts_contactsBlock_JabberValue')
-                if tg_span_tag:
-                    tg_contact = tg_span_tag.get_text()
-                else:
-                    await message.answer('У данного id не указан Telegram')
-                    return
-                if tg_contact.lower() != message.from_user.username.lower():
-                    await message.answer('Ваше имя в tg не соответствует tg указанного автора')
-                    return
-        except Exception as e:
-            logging.error(f'Ошибка проверки телеграма в en-профиле {e}')
-            await message.answer('Ошибка проверки телеграма в en-профиле')
-            return
+            # Проверка, что id находится в списке авторов игры
+            try:
+                async with my_session.get(f'https://{my_domain}/GameDetails.aspx?gid={my_game_id}') as rs:
+                    rs.raise_for_status()
+                    soup = BeautifulSoup(await rs.text(), 'lxml')
+                    authors_links = soup.select('a[id^="GameDetail_AuthorsRepeater"]')
+                    authors_list = []
+                    for a in authors_links:
+                        href = a.get('href', '')
+                        if href:
+                            url_obj = urlparse(href)
+                            user_id = parse_qs(url_obj.query)['uid'][0]
+                            if user_id:
+                                authors_list.append(user_id)
+                    if author_id not in authors_list:
+                        await message.answer('Ваш id не находится в списке авторов игры')
+                        return
+                    if config.bot_en_id not in authors_list:
+                        await message.answer(f'enstatbot (https://world.en.cx/UserDetails.aspx?uid={config.bot_en_id}) не находится в списке авторов игры')
+                        return
+            except Exception as e:
+                logging.error(f'Ошибка проверки списка авторов игры {e}')
+                await message.answer('Ошибка проверки списка авторов игры')
+                return
+
+            # Проверка, что телеграм в профиле соответствует тому, кто обращается
+            try:
+                async with my_session.get(f'https://{my_domain}/UserDetails.aspx?uid={author_id}') as rs:
+                    rs.raise_for_status()
+                    soup = BeautifulSoup(await rs.text(), 'lxml')
+                    tg_span_tag = soup.find('span', id='EnTabContainer1_content_ctl00_panelLineContacts_contactsBlock_JabberValue')
+                    if tg_span_tag:
+                        tg_contact = tg_span_tag.get_text()
+                    else:
+                        await message.answer('У данного id не указан Telegram')
+                        return
+                    if tg_contact.lower().replace('@','') != message.from_user.username.lower():
+                        await message.answer('Ваше имя в tg не соответствует tg указанного автора')
+                        return
+            except Exception as e:
+                logging.error(f'Ошибка проверки телеграма в en-профиле {e}')
+                await message.answer('Ошибка проверки телеграма в en-профиле')
+                return
 
         try:
             levels_list, dismissed_levels_list = parse_level_nums(levels_text)
@@ -283,15 +285,23 @@ async def cmd_hstat(message: types.Message, command: CommandObject):
             await message.answer(f'Ошибка списка уровней')
             return
 
-        info_str = f'Пользователь tg @{message.chat.username} с en id https://world.en.cx/UserDetails.aspx?uid={author_id} считает закрытую статистику игры {my_url}'
+        info_str = f'Пользователь tg @{message.from_user.username} с en id https://world.en.cx/UserDetails.aspx?uid={author_id} считает закрытую статистику игры {my_url}'
         logging.info(info_str)
         await bot.send_message(config.admin_chat_id, info_str)
         try:
+            pages = []
             async with my_session.get(f'https://{my_domain}/GameStat.aspx?gid={my_game_id}&sortfield=SpentSeconds&lang=ru') as rs:
                 rs.raise_for_status()
                 html_source = await rs.text()
-                result = parse_html_stat(html_source, levels_list, dismissed_levels_list)
-                await send_result(message.chat.id, result)
+                pages.append(html_source)
+            if '&page=2' in html_source:
+                async with my_session.get(f'https://{my_domain}/GameStat.aspx?gid={my_game_id}&sortfield=SpentSeconds&lang=ru&page=2') as rs:
+                    rs.raise_for_status()
+                    html_source2 = await rs.text()
+                    pages.append(html_source2)
+
+            result = parse_html_stat(pages, levels_list, dismissed_levels_list)
+            await send_result(message.chat.id, result)
         except Exception as e:
             logging.error(f'Ошибка парсера статистики {e}')
             await message.answer('Ошибка парсера статистики')
@@ -361,7 +371,7 @@ async def cmd_hstat_file(message: types.Message):
         await bot.download_file(file_info.file_path, destination=html_buffer)
         html_buffer.seek(0)
         html_content_str = html_buffer.read().decode('utf-8')
-        result = parse_html_stat(html_content_str, levels_list, dismissed_levels_list)
+        result = parse_html_stat([html_content_str], levels_list, dismissed_levels_list)
         await send_result(message.chat.id, result)
     except:
         await message.reply("Произошла ошибка")
