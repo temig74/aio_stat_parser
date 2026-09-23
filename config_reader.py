@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     bot_en_id: str
     admins_raw: str = Field(alias='ADMINS')
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
+    stat_source: str
 
     @property
     def admins(self) -> list[str]:
